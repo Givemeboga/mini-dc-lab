@@ -1,0 +1,481 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1210" width="1680" height="1210" font-family="'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif">
+  <title>Mini Data Center — Network &amp; Building Architecture (Containerlab lab)</title>
+  <style>
+    .title { font-size: 28px; font-weight: 700; fill: #1e3a8a; }
+    .sub   { font-size: 13px; fill: #64748b; }
+    .bld   { font-size: 12px; font-weight: 600; fill: #475569; }
+    .room  { font-size: 11px; font-weight: 600; fill: #334155; }
+    .zone  { font-size: 10.5px; font-weight: 700; }
+    .n     { font-size: 11px; font-weight: 700; fill: #0f172a; }
+    .r     { font-size: 9.5px; fill: #64748b; }
+    .ip    { font-size: 9.5px; fill: #1e40af; font-family: Consolas, 'JetBrains Mono', Menlo, monospace; }
+    .san   { font-size: 9.5px; fill: #b45309; font-family: Consolas, 'JetBrains Mono', Menlo, monospace; }
+    .lk    { font-size: 9px; font-weight: 600; }
+    .h     { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+    .ph    { font-size: 13px; font-weight: 700; fill: #0f172a; }
+    .pt    { font-size: 10.5px; fill: #334155; }
+    .ps    { font-size: 9px; fill: #64748b; }
+    .mono  { font-family: Consolas, 'JetBrains Mono', Menlo, monospace; }
+    .wan    { stroke: #6b7280; stroke-width: 2; fill: none; }
+    .routed { stroke: #7c3aed; stroke-width: 2; fill: none; }
+    .trunk  { stroke: #3b82f6; stroke-width: 2; fill: none; }
+    .access { stroke: #22a06b; stroke-width: 2; fill: none; }
+    .lacp   { stroke: #e5484d; stroke-width: 2.5; fill: none; }
+    .dmz    { stroke: #d6336c; stroke-width: 2; fill: none; }
+    .iscsi  { stroke: #f59e0b; stroke-width: 2; fill: none; }
+    .fiber  { stroke: #0f9d8a; stroke-width: 2; fill: none; stroke-dasharray: 7 4; }
+    .power  { stroke: #d99a1e; stroke-width: 2; fill: none; stroke-dasharray: 5 4; }
+  </style>
+
+  <defs>
+    <!-- Router (FRR) -->
+    <symbol id="router" viewBox="0 0 60 34">
+      <ellipse cx="30" cy="24" rx="28" ry="9" fill="#1f5fbf"/>
+      <rect x="2" y="11" width="56" height="13" fill="#2f74d8"/>
+      <ellipse cx="30" cy="11" rx="28" ry="9" fill="#5b9bf0"/>
+      <path d="M14 11 h11 M21 8 l4 3 -4 3 M46 11 h-11 M39 8 l-4 3 4 3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- Firewall (brick wall) -->
+    <symbol id="firewall" viewBox="0 0 44 40">
+      <rect x="1" y="1" width="42" height="38" rx="3" fill="#e4572e"/>
+      <path d="M1 10.5 H43 M1 20 H43 M1 29.5 H43 M15 1 V10.5 M29 1 V10.5 M8 10.5 V20 M22 10.5 V20 M36 10.5 V20 M15 20 V29.5 M29 20 V29.5 M8 29.5 V39 M22 29.5 V39 M36 29.5 V39" stroke="#fff" stroke-width="1.6" fill="none"/>
+    </symbol>
+    <!-- L3 core switch -->
+    <symbol id="core" viewBox="0 0 44 44">
+      <rect x="1" y="1" width="42" height="42" rx="7" fill="#2f74d8"/>
+      <circle cx="22" cy="22" r="13" fill="none" stroke="#fff" stroke-width="2"/>
+      <path d="M22 9 V35 M9 22 H35 M13 13 L31 31 M31 13 L13 31" stroke="#fff" stroke-width="1.6"/>
+      <circle cx="22" cy="22" r="3.5" fill="#fff"/>
+    </symbol>
+    <!-- L2 switch / bridge -->
+    <symbol id="l2" viewBox="0 0 64 22">
+      <polygon points="6,0 64,0 58,8 0,8" fill="#6aa5f2"/>
+      <rect x="0" y="8" width="58" height="14" fill="#2f74d8"/>
+      <polygon points="58,8 64,0 64,14 58,22" fill="#1d4f9e"/>
+      <path d="M8 15 h14 M18 12 l4 3 -4 3 M50 15 h-14 M40 12 l-4 3 4 3" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- Server -->
+    <symbol id="server" viewBox="0 0 28 44">
+      <rect x="1" y="1" width="26" height="42" rx="3" fill="#2f74d8"/>
+      <rect x="1" y="1" width="26" height="6" rx="3" fill="#5b9bf0"/>
+      <path d="M6 14 H22 M6 20 H22 M6 26 H22" stroke="#cfe2ff" stroke-width="2"/>
+      <circle cx="8" cy="36" r="2" fill="#7ee2a8"/>
+      <circle cx="14" cy="36" r="2" fill="#cfe2ff"/>
+    </symbol>
+    <!-- PC / workstation -->
+    <symbol id="pc" viewBox="0 0 40 36">
+      <rect x="2" y="2" width="36" height="24" rx="2" fill="#2f74d8"/>
+      <rect x="5" y="5" width="30" height="18" fill="#cfe2ff"/>
+      <rect x="17" y="26" width="6" height="5" fill="#1f5fbf"/>
+      <rect x="11" y="31" width="18" height="3" rx="1.5" fill="#1f5fbf"/>
+    </symbol>
+    <!-- Storage array -->
+    <symbol id="storage" viewBox="0 0 64 34">
+      <rect x="1" y="1" width="62" height="10" rx="2" fill="#5b9bf0"/>
+      <rect x="1" y="12" width="62" height="10" rx="2" fill="#2f74d8"/>
+      <rect x="1" y="23" width="62" height="10" rx="2" fill="#1f5fbf"/>
+      <path d="M8 6 H30 M8 17 H30 M8 28 H30" stroke="#cfe2ff" stroke-width="1.6"/>
+      <circle cx="54" cy="6" r="1.8" fill="#7ee2a8"/>
+      <circle cx="54" cy="17" r="1.8" fill="#7ee2a8"/>
+      <circle cx="54" cy="28" r="1.8" fill="#7ee2a8"/>
+    </symbol>
+    <!-- Small check mark -->
+    <symbol id="check" viewBox="0 0 14 14">
+      <circle cx="7" cy="7" r="6.2" fill="none" stroke="#22a06b" stroke-width="1.4"/>
+      <path d="M4 7.2 L6.2 9.4 L10.2 5" stroke="#22a06b" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+
+  <rect width="1680" height="1210" fill="#ffffff"/>
+
+  <!-- ============================================================ HEADER -->
+  <text x="30" y="50" class="title">Mini Data Center — Network &amp; Building Architecture</text>
+  <text x="31" y="74" class="sub">Containerlab lab · 30 nodes · 34 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 20/20 tests</text>
+
+  <!-- Legend (top right) -->
+  <g transform="translate(1418,30)">
+    <rect x="0" y="0" width="24" height="14" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 3"/>
+    <text x="30" y="11" class="ps">Building</text>
+    <rect x="100" y="0" width="24" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="130" y="11" class="ps">Room / zone</text>
+    <rect x="0" y="24" width="24" height="14" rx="3" fill="#fffbeb" stroke="#d99a1e" stroke-dasharray="4 3"/>
+    <text x="30" y="35" class="ps">Physical only (not emulated)</text>
+  </g>
+
+  <!-- ============================================================ ISP CLOUDS -->
+  <g transform="translate(620,116)">
+    <circle cx="-28" cy="6" r="18" fill="#dbeafe"/>
+    <circle cx="0" cy="-6" r="24" fill="#dbeafe"/>
+    <circle cx="28" cy="4" r="20" fill="#dbeafe"/>
+    <rect x="-48" y="6" width="96" height="18" rx="9" fill="#dbeafe"/>
+    <text x="0" y="2" text-anchor="middle" class="n">ISP A</text>
+    <text x="0" y="15" text-anchor="middle" class="r">NAT → Internet · .0.2</text>
+  </g>
+  <g transform="translate(840,116)">
+    <circle cx="-28" cy="6" r="18" fill="#dbeafe"/>
+    <circle cx="0" cy="-6" r="24" fill="#dbeafe"/>
+    <circle cx="28" cy="4" r="20" fill="#dbeafe"/>
+    <rect x="-48" y="6" width="96" height="18" rx="9" fill="#dbeafe"/>
+    <text x="0" y="2" text-anchor="middle" class="n">ISP B</text>
+    <text x="0" y="15" text-anchor="middle" class="r">NAT → Internet · .0.6</text>
+  </g>
+
+  <!-- ============================================================ LEFT COLUMN -->
+  <!-- VLAN plan -->
+  <rect x="30" y="180" width="320" height="470" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="48" y="208" class="ph">VLAN plan &amp; IP addressing</text>
+  <g font-size="11">
+    <!-- row: badge / name / subnet / note -->
+    <g transform="translate(0,222)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#eff6ff"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#2563eb">10</text>
+      <text x="88" y="17" class="pt" font-weight="600">OOB mgmt</text><text x="170" y="17" class="ip">10.10.10.0/24</text><text x="262" y="12" class="ps">clab dc-oob</text><text x="262" y="23" class="ps">(VLAN 10 role)</text>
+    </g>
+    <g transform="translate(0,258)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#ecfdf3"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#15803d">20</text>
+      <text x="88" y="17" class="pt" font-weight="600">Servers</text><text x="170" y="17" class="ip">10.10.20.0/24</text><text x="262" y="12" class="ps">gw VRRP .1</text><text x="262" y="23" class="ps">application</text>
+    </g>
+    <g transform="translate(0,294)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#fff8e8"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#b45309">30</text>
+      <text x="88" y="17" class="pt" font-weight="600">Storage</text><text x="170" y="17" class="ip">10.10.30.0/24</text><text x="262" y="12" class="ps">iSCSI SAN</text><text x="262" y="23" class="ps">not routed</text>
+    </g>
+    <g transform="translate(0,330)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#f3efff"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#7c3aed">40</text>
+      <text x="88" y="17" class="pt" font-weight="600">Backup</text><text x="170" y="17" class="ip">10.10.40.0/24</text><text x="262" y="12" class="ps">gw VRRP .1</text><text x="262" y="23" class="ps">backup traffic</text>
+    </g>
+    <g transform="translate(0,366)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#eef5ff"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#2563eb">50</text>
+      <text x="88" y="17" class="pt" font-weight="600">Users</text><text x="170" y="17" class="ip">10.10.50.0/24</text><text x="262" y="12" class="ps">gw VRRP .1</text><text x="262" y="23" class="ps">ACL USERS-IN</text>
+    </g>
+    <g transform="translate(0,402)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#fff0f4"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#be185d">60</text>
+      <text x="88" y="17" class="pt" font-weight="600">DMZ</text><text x="170" y="17" class="ip">10.10.60.0/24</text><text x="262" y="12" class="ps">gw FW-01 .1</text><text x="262" y="23" class="ps">public web</text>
+    </g>
+    <g transform="translate(0,438)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#eafaf5"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#0f766e">70</text>
+      <text x="88" y="17" class="pt" font-weight="600">Monitoring</text><text x="170" y="17" class="ip">10.10.70.0/24</text><text x="262" y="12" class="ps">gw VRRP .1</text><text x="262" y="23" class="ps">NOC, syslog</text>
+    </g>
+    <g transform="translate(0,474)">
+      <rect x="46" y="0" width="34" height="26" rx="4" fill="#f1f5f9"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#475569">99</text>
+      <text x="88" y="17" class="pt" font-weight="600">Core transit</text><text x="170" y="17" class="ip">10.10.99.8/30</text><text x="262" y="12" class="ps">core ↔ core</text><text x="262" y="23" class="ps">OSPF backup</text>
+    </g>
+  </g>
+  <line x1="46" y1="514" x2="334" y2="514" stroke="#e2e8f0"/>
+  <text x="48" y="533" class="pt" font-weight="600">Routed /30 links · OSPF area 0 (hello 1 s / dead 3 s)</text>
+  <text x="48" y="552" class="ps">WAN (edge ↔ ISP)</text><text x="160" y="552" class="ip">10.0.0.0/30 · 10.0.0.4/30</text>
+  <text x="48" y="570" class="ps">Edges ↔ FW-01</text><text x="160" y="570" class="ip">10.0.1.0/30 · 10.0.1.4/30</text>
+  <text x="48" y="588" class="ps">FW-01 ↔ cores</text><text x="160" y="588" class="ip">10.10.99.0/30 · .4/30</text>
+  <line x1="46" y1="604" x2="334" y2="604" stroke="#e2e8f0"/>
+  <text x="48" y="622" class="ps">Gateways: VRRP VIP .1 — CORE-01 master (prio 110),</text>
+  <text x="48" y="636" class="ps">CORE-02 backup · real IPs .2 / .3 (VLAN 30 has no gateway)</text>
+
+  <!-- Bâtiment technique A -->
+  <rect x="30" y="668" width="320" height="202" rx="8" fill="#fffbeb" stroke="#d99a1e" stroke-dasharray="6 4"/>
+  <text x="48" y="694" class="ph">Bâtiment technique A</text>
+  <text x="48" y="709" class="ps">Physical only · not emulated in the lab</text>
+  <g class="pt">
+    <rect x="48" y="722" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="736" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">TG</text>
+    <text x="82" y="731" font-weight="600">TGBT A</text><text x="82" y="742" class="ps">Main switchboard, grid feed A</text>
+    <rect x="48" y="752" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="766" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">UPS</text>
+    <text x="82" y="761" font-weight="600">UPS A</text><text x="82" y="772" class="ps">Feeds the A-side PDU of every rack</text>
+    <rect x="48" y="782" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="796" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">GEN</text>
+    <text x="82" y="791" font-weight="600">Generator A</text><text x="82" y="802" class="ps">Diesel backup, auto-start</text>
+    <rect x="48" y="812" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="826" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">AC</text>
+    <text x="82" y="821" font-weight="600">Chillers / CRAC A</text><text x="82" y="832" class="ps">Cooling for server rooms 1 &amp; 2</text>
+  </g>
+  <text x="48" y="856" class="ps" font-weight="700" fill="#b45309">→ Power path A (2N)</text>
+
+  <!-- Bâtiment technique B -->
+  <rect x="30" y="888" width="320" height="262" rx="8" fill="#fffbeb" stroke="#d99a1e" stroke-dasharray="6 4"/>
+  <text x="48" y="914" class="ph">Bâtiment technique B</text>
+  <text x="48" y="929" class="ps">Physical only · not emulated in the lab</text>
+  <g class="pt">
+    <rect x="48" y="942" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="956" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">UPS</text>
+    <text x="82" y="951" font-weight="600">UPS B</text><text x="82" y="962" class="ps">Feeds the B-side PDU of every rack</text>
+    <rect x="48" y="972" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="986" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">GEN</text>
+    <text x="82" y="981" font-weight="600">Generator B</text><text x="82" y="992" class="ps">Independent from side A</text>
+    <rect x="48" y="1002" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="1016" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">AC</text>
+    <text x="82" y="1011" font-weight="600">Chillers / CRAC B</text><text x="82" y="1022" class="ps">N+1 cooling redundancy</text>
+    <rect x="48" y="1032" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="1046" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">FS</text>
+    <text x="82" y="1041" font-weight="600">Fire suppression</text><text x="82" y="1052" class="ps">Inert gas, smoke detection</text>
+    <rect x="48" y="1062" width="24" height="20" rx="4" fill="#fdecc8"/><text x="60" y="1076" text-anchor="middle" font-size="8.5" font-weight="700" fill="#b45309">ACS</text>
+    <text x="82" y="1071" font-weight="600">Access control</text><text x="82" y="1082" class="ps">Badge readers + CCTV</text>
+  </g>
+  <text x="48" y="1108" class="ps" font-weight="700" fill="#b45309">→ Power path B (2N)</text>
+  <text x="48" y="1130" class="ps">Could be simulated as SNMP values in Zabbix</text>
+
+  <!-- power feeds into the IT building -->
+  <path d="M350 770 H368" class="power"/><path d="M362 765 L369 770 L362 775" fill="none" stroke="#d99a1e" stroke-width="2"/>
+  <path d="M350 1020 H368" class="power"/><path d="M362 1015 L369 1020 L362 1025" fill="none" stroke="#d99a1e" stroke-width="2"/>
+
+  <!-- ============================================================ BÂTIMENT INFORMATIQUE -->
+  <rect x="370" y="180" width="780" height="990" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <text x="1138" y="199" text-anchor="end" class="bld">Bâtiment informatique · IT building</text>
+
+  <!-- Salle réseau (MMR) -->
+  <rect x="390" y="210" width="740" height="352" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1118" y="229" text-anchor="end" class="room">Salle réseau · MMR (edges, firewall, core)</text>
+
+  <!-- DMZ zone -->
+  <rect x="925" y="322" width="190" height="150" rx="6" fill="#fff0f4" stroke="#e0527d"/>
+  <text x="937" y="340" class="zone" fill="#be185d">DMZ · VLAN 60</text>
+
+  <!-- Salle serveurs 1 / 2 -->
+  <rect x="390" y="596" width="360" height="278" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="402" y="615" class="room">Salle serveurs 1 · Rack A</text>
+  <rect x="770" y="596" width="360" height="278" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1118" y="615" text-anchor="end" class="room">Salle serveurs 2 · Rack B</text>
+
+  <rect x="405" y="690" width="330" height="170" rx="6" fill="#ecfdf3" stroke="#34b87a"/>
+  <text x="417" y="852" class="zone" fill="#15803d">Servers · VLAN 20</text>
+  <rect x="785" y="690" width="215" height="170" rx="6" fill="#ecfdf3" stroke="#34b87a"/>
+  <text x="806" y="852" class="zone" fill="#15803d">Servers · VLAN 20</text>
+  <rect x="1010" y="690" width="105" height="170" rx="6" fill="#f3efff" stroke="#9b7bea"/>
+  <text x="1020" y="840" class="zone" fill="#7c3aed">Backup</text>
+  <text x="1020" y="852" class="zone" fill="#7c3aed">VLAN 40</text>
+
+  <!-- Zone stockage -->
+  <rect x="390" y="892" width="740" height="258" rx="8" fill="#fff8e8" stroke="#f0b429"/>
+  <text x="1118" y="911" text-anchor="end" class="zone" fill="#b45309">Zone stockage · SAN iSCSI · VLAN 30</text>
+
+  <!-- ============================================================ BÂTIMENT LOGISTIQUE -->
+  <rect x="1170" y="180" width="480" height="552" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <text x="1182" y="199" class="bld">Bâtiment logistique · NOC, users &amp; admin</text>
+
+  <rect x="1185" y="212" width="450" height="154" rx="6" fill="#eafaf5" stroke="#20a386"/>
+  <text x="1623" y="230" text-anchor="end" class="zone" fill="#0f766e">NOC · Monitoring · VLAN 70</text>
+  <rect x="1185" y="378" width="450" height="146" rx="6" fill="#eef5ff" stroke="#4f8ef7"/>
+  <text x="1623" y="396" text-anchor="end" class="zone" fill="#2563eb">Users · VLAN 50</text>
+  <rect x="1185" y="536" width="450" height="182" rx="6" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="1623" y="554" text-anchor="end" class="zone" fill="#475569">Management · OOB 10.10.10.0/24</text>
+
+  <!-- ============================================================ LINKS -->
+  <!-- WAN -->
+  <path d="M620 140 V255" class="wan"/>
+  <path d="M840 140 V255" class="wan"/>
+  <!-- edges <-> firewall, firewall <-> cores (routed /30, OSPF) -->
+  <path d="M628 289 L716 366" class="routed"/>
+  <path d="M832 289 L744 366" class="routed"/>
+  <path d="M716 405 L598 474" class="routed"/>
+  <path d="M744 405 L842 474" class="routed"/>
+  <text x="648" y="446" text-anchor="end" class="lk h" fill="#7c3aed">10.10.99.0/30</text>
+  <text x="800" y="446" class="lk h" fill="#7c3aed">10.10.99.4/30</text>
+  <!-- DMZ leg -->
+  <path d="M752 382 L988 362" class="dmz"/>
+  <text x="865" y="366" text-anchor="middle" class="lk h" fill="#d6336c">DMZ leg · eth5</text>
+  <path d="M1010 373 L975 386" class="dmz"/>
+  <path d="M1030 373 L1068 386" class="dmz"/>
+  <!-- core <-> core LACP -->
+  <path d="M612 491 H828" class="lacp"/>
+  <path d="M612 499 H828" class="lacp"/>
+  <text x="720" y="484" text-anchor="middle" class="lk h" fill="#e5484d">LACP Po1 2×10G · VLAN 99</text>
+  <!-- inter-building fibers (each core -> NOC-SW + USER-SW) -->
+  <path d="M568 505 H555 V580 H1156 V295 H1213" class="fiber"/>
+  <path d="M1156 450 H1213" class="fiber"/>
+  <path d="M847 517 V573 H1164 V305 H1213" class="fiber"/>
+  <path d="M1164 460 H1213" class="fiber"/>
+  <text x="1140" y="592" text-anchor="end" class="lk h" fill="#0f9d8a">Inter-building fibers ×4 · STP</text>
+  <!-- core -> ToR trunks -->
+  <path d="M582 517 L578 619" class="trunk"/>
+  <path d="M604 517 L914 619" class="trunk"/>
+  <path d="M836 517 L596 619" class="trunk"/>
+  <path d="M858 517 L940 619" class="trunk"/>
+  <!-- ToR <-> ToR LACP -->
+  <path d="M607 626 H898" class="lacp"/>
+  <path d="M607 634 H898" class="lacp"/>
+  <text x="752" y="651" text-anchor="middle" class="lk h" fill="#e5484d">LACP Po1 2×10G</text>
+  <!-- access -->
+  <path d="M565 641 L480 728" class="access"/>
+  <path d="M575 641 V728" class="access"/>
+  <path d="M585 641 L670 728" class="access"/>
+  <path d="M920 641 L852 728" class="access"/>
+  <path d="M932 641 L948 728" class="access"/>
+  <path d="M944 641 L1062 728" class="access"/>
+  <!-- SAN (dedicated storage NICs) -->
+  <path d="M838 755 H795 V917 H548 V979" class="iscsi"/>
+  <path d="M1076 755 H1105 V927 H572 V979" class="iscsi"/>
+  <path d="M592 990 H808" class="iscsi"/>
+  <text x="700" y="983" text-anchor="middle" class="lk h" fill="#b45309">iSCSI · TCP 3260</text>
+  <!-- logistics access -->
+  <path d="M1245 289 V250 H1540 V270" class="access"/>
+  <path d="M1400 250 V274" class="access"/>
+  <path d="M1245 444 V412 H1540 V430" class="access"/>
+  <path d="M1400 412 V430" class="access"/>
+
+  <!-- ============================================================ NODES -->
+  <!-- MMR -->
+  <use href="#router" x="590" y="255" width="60" height="34"/>
+  <text x="582" y="266" text-anchor="end" class="n h">EDGE-R1</text>
+  <text x="582" y="278" text-anchor="end" class="r h">FRR · NAT · ISP A (primary)</text>
+  <text x="582" y="290" text-anchor="end" class="ip h">WAN 10.0.0.1/30</text>
+
+  <use href="#router" x="810" y="255" width="60" height="34"/>
+  <text x="878" y="266" class="n h">EDGE-R2</text>
+  <text x="878" y="278" class="r h">FRR · NAT · ISP B (backup)</text>
+  <text x="878" y="290" class="ip h">WAN 10.0.0.5/30</text>
+
+  <use href="#firewall" x="708" y="365" width="44" height="40"/>
+  <text x="698" y="381" text-anchor="end" class="n h">FW-01</text>
+  <text x="698" y="393" text-anchor="end" class="r h">FRR OSPF + nftables</text>
+  <text x="698" y="405" text-anchor="end" class="ip h">default drop</text>
+
+  <use href="#core" x="568" y="473" width="44" height="44"/>
+  <text x="545" y="488" text-anchor="end" class="n h">CORE-01</text>
+  <text x="545" y="500" text-anchor="end" class="r h">cEOS L3 · VRRP master</text>
+  <text x="545" y="512" text-anchor="end" class="ip h">MSTP root · 10.10.10.11</text>
+
+  <use href="#core" x="828" y="473" width="44" height="44"/>
+  <text x="880" y="488" class="n h">CORE-02</text>
+  <text x="880" y="500" class="r h">cEOS L3 · VRRP backup</text>
+  <text x="880" y="512" class="ip h">10.10.10.12</text>
+
+  <use href="#l2" x="988" y="351" width="64" height="22"/>
+  <text x="1058" y="360" class="n">DMZ-SW</text>
+  <text x="1058" y="371" class="r">bridge</text>
+  <use href="#server" x="963" y="386" width="24" height="38"/>
+  <text x="975" y="438" text-anchor="middle" class="n">WEB-DMZ01</text>
+  <text x="975" y="449" text-anchor="middle" class="r">nginx · via ISP A</text>
+  <text x="975" y="460" text-anchor="middle" class="ip">10.10.60.10</text>
+  <use href="#server" x="1056" y="386" width="24" height="38"/>
+  <text x="1068" y="438" text-anchor="middle" class="n">WEB-DMZ02</text>
+  <text x="1068" y="449" text-anchor="middle" class="r">nginx · via ISP B</text>
+  <text x="1068" y="460" text-anchor="middle" class="ip">10.10.60.11</text>
+
+  <!-- Rack A -->
+  <use href="#l2" x="543" y="619" width="64" height="22"/>
+  <text x="535" y="628" text-anchor="end" class="n h">TOR-01</text>
+  <text x="535" y="640" text-anchor="end" class="r h">cEOS L2 · .21</text>
+  <use href="#server" x="466" y="728" width="28" height="44"/>
+  <text x="480" y="788" text-anchor="middle" class="n">WEB01</text>
+  <text x="480" y="800" text-anchor="middle" class="r">nginx intranet</text>
+  <text x="480" y="812" text-anchor="middle" class="ip">10.10.20.10</text>
+  <use href="#server" x="561" y="728" width="28" height="44"/>
+  <text x="575" y="788" text-anchor="middle" class="n">APP01</text>
+  <text x="575" y="800" text-anchor="middle" class="r">Python API :8080</text>
+  <text x="575" y="812" text-anchor="middle" class="ip">10.10.20.20</text>
+  <use href="#server" x="656" y="728" width="28" height="44"/>
+  <text x="670" y="788" text-anchor="middle" class="n">DNS01</text>
+  <text x="670" y="800" text-anchor="middle" class="r">BIND9 · dc.lab</text>
+  <text x="670" y="812" text-anchor="middle" class="ip">10.10.20.40</text>
+
+  <!-- Rack B -->
+  <use href="#l2" x="898" y="619" width="64" height="22"/>
+  <text x="968" y="628" class="n h">TOR-02</text>
+  <text x="968" y="640" class="r h">cEOS L2 · .22</text>
+  <use href="#server" x="838" y="728" width="28" height="44"/>
+  <text x="852" y="788" text-anchor="middle" class="n">DB01</text>
+  <text x="852" y="800" text-anchor="middle" class="r">MariaDB + host nft</text>
+  <text x="852" y="812" text-anchor="middle" class="ip">10.10.20.30</text>
+  <text x="852" y="824" text-anchor="middle" class="san">SAN .30.30</text>
+  <use href="#server" x="934" y="728" width="28" height="44"/>
+  <text x="948" y="788" text-anchor="middle" class="n">AD01</text>
+  <text x="948" y="800" text-anchor="middle" class="r">IP + DNS only</text>
+  <text x="948" y="812" text-anchor="middle" class="ip">10.10.20.50</text>
+  <use href="#server" x="1048" y="728" width="28" height="44"/>
+  <text x="1062" y="788" text-anchor="middle" class="n">BACKUP01</text>
+  <text x="1062" y="800" text-anchor="middle" class="r">iSCSI initiator</text>
+  <text x="1062" y="812" text-anchor="middle" class="ip">10.10.40.10</text>
+  <text x="1062" y="824" text-anchor="middle" class="san">SAN .30.40</text>
+
+  <!-- Storage -->
+  <use href="#l2" x="528" y="979" width="64" height="22"/>
+  <text x="560" y="1020" text-anchor="middle" class="n">STORAGE-SW</text>
+  <text x="560" y="1032" text-anchor="middle" class="r">Linux bridge · isolated</text>
+  <text x="560" y="1044" text-anchor="middle" class="ip">no gateway</text>
+  <use href="#storage" x="808" y="973" width="64" height="34"/>
+  <text x="840" y="1024" text-anchor="middle" class="n">STORAGE01</text>
+  <text x="840" y="1036" text-anchor="middle" class="r">tgt iSCSI target (userspace)</text>
+  <text x="840" y="1048" text-anchor="middle" class="ip">10.10.30.10</text>
+  <g>
+    <text x="930" y="968" class="pt" font-weight="700" fill="#0f172a">LUN</text>
+    <text x="956" y="968" class="ps mono">storage01.db → DB01</text>
+    <text x="930" y="984" class="pt" font-weight="700" fill="#0f172a">LUN</text>
+    <text x="956" y="984" class="ps mono">storage01.backup → BACKUP01</text>
+    <text x="930" y="1002" class="ps">ACL per initiator IP</text>
+    <text x="930" y="1015" class="ps">Dedicated NICs · not routed</text>
+  </g>
+
+  <!-- Logistics: NOC -->
+  <use href="#l2" x="1213" y="289" width="64" height="22"/>
+  <text x="1245" y="326" text-anchor="middle" class="n">NOC-SW</text>
+  <text x="1245" y="338" text-anchor="middle" class="r">bridge · STP</text>
+  <use href="#pc" x="1380" y="274" width="40" height="36"/>
+  <text x="1400" y="326" text-anchor="middle" class="n">NOC-WS</text>
+  <text x="1400" y="338" text-anchor="middle" class="r">operator station</text>
+  <text x="1400" y="350" text-anchor="middle" class="ip">10.10.70.10</text>
+  <use href="#server" x="1526" y="270" width="28" height="44"/>
+  <text x="1540" y="326" text-anchor="middle" class="n">SYSLOG01</text>
+  <text x="1540" y="338" text-anchor="middle" class="r">rsyslog ← switches</text>
+  <text x="1540" y="350" text-anchor="middle" class="ip">10.10.70.20</text>
+
+  <!-- Logistics: users -->
+  <use href="#l2" x="1213" y="444" width="64" height="22"/>
+  <text x="1245" y="482" text-anchor="middle" class="n">USER-SW</text>
+  <text x="1245" y="494" text-anchor="middle" class="r">bridge · STP</text>
+  <use href="#pc" x="1380" y="430" width="40" height="36"/>
+  <text x="1400" y="482" text-anchor="middle" class="n">PC-01</text>
+  <text x="1400" y="494" text-anchor="middle" class="r">client</text>
+  <text x="1400" y="506" text-anchor="middle" class="ip">10.10.50.101</text>
+  <use href="#pc" x="1520" y="430" width="40" height="36"/>
+  <text x="1540" y="482" text-anchor="middle" class="n">PC-02</text>
+  <text x="1540" y="494" text-anchor="middle" class="r">client</text>
+  <text x="1540" y="506" text-anchor="middle" class="ip">10.10.50.102</text>
+
+  <!-- Logistics: OOB management + monitoring -->
+  <use href="#pc" x="1220" y="584" width="40" height="36"/>
+  <text x="1240" y="638" text-anchor="middle" class="n">ADMIN-PC</text>
+  <text x="1240" y="650" text-anchor="middle" class="r">admin station</text>
+  <text x="1240" y="662" text-anchor="middle" class="ip">10.10.10.100</text>
+  <use href="#server" x="1336" y="578" width="28" height="44"/>
+  <text x="1350" y="638" text-anchor="middle" class="n">MONITOR01</text>
+  <text x="1350" y="650" text-anchor="middle" class="r">Zabbix server</text>
+  <text x="1350" y="662" text-anchor="middle" class="ip">10.10.10.50</text>
+  <use href="#server" x="1436" y="578" width="28" height="44"/>
+  <text x="1450" y="638" text-anchor="middle" class="n">ZBX-WEB</text>
+  <text x="1450" y="650" text-anchor="middle" class="r">Zabbix UI :8080</text>
+  <text x="1450" y="662" text-anchor="middle" class="ip">10.10.10.51</text>
+  <use href="#server" x="1536" y="578" width="28" height="44"/>
+  <text x="1550" y="638" text-anchor="middle" class="n">ZBX-DB</text>
+  <text x="1550" y="650" text-anchor="middle" class="r">PostgreSQL 16</text>
+  <text x="1550" y="662" text-anchor="middle" class="ip">10.10.10.52</text>
+  <rect x="1200" y="678" width="420" height="24" rx="12" fill="#e2e8f0"/>
+  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 30 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
+
+  <!-- ============================================================ LINK TYPES -->
+  <rect x="1170" y="750" width="480" height="168" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1188" y="777" class="ph">Link types</text>
+  <g class="pt">
+    <path d="M1190 797 H1224 M1190 803 H1224" class="lacp"/><text x="1234" y="804">LACP 2×10G (core, ToR)</text>
+    <path d="M1190 824 H1224" class="trunk"/><text x="1234" y="828">802.1Q trunk (core → ToR)</text>
+    <path d="M1190 848 H1224" class="access"/><text x="1234" y="852">Access port</text>
+    <path d="M1190 872 H1224" class="routed"/><text x="1234" y="876">Routed /30 · OSPF</text>
+    <path d="M1190 896 H1224" class="power"/><text x="1234" y="900">Power / cooling feed</text>
+    <path d="M1420 800 H1454" class="wan"/><text x="1464" y="804">WAN / ISP</text>
+    <path d="M1420 824 H1454" class="dmz"/><text x="1464" y="828">DMZ</text>
+    <path d="M1420 848 H1454" class="iscsi"/><text x="1464" y="852">iSCSI storage</text>
+    <path d="M1420 872 H1454" class="fiber"/><text x="1464" y="876">Inter-building fiber</text>
+  </g>
+
+  <!-- ============================================================ KEY FEATURES -->
+  <rect x="1170" y="934" width="480" height="236" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1188" y="961" class="ph">Key features</text>
+  <g class="pt">
+    <use href="#check" x="1188" y="976" width="13" height="13"/><text x="1207" y="987">Dual ISP failover via OSPF (≈0.2 s)</text>
+    <use href="#check" x="1188" y="1000" width="13" height="13"/><text x="1207" y="1011">VRRP gateway redundancy (≈2.8 s)</text>
+    <use href="#check" x="1188" y="1024" width="13" height="13"/><text x="1207" y="1035">LACP on core &amp; ToR</text>
+    <use href="#check" x="1188" y="1048" width="13" height="13"/><text x="1207" y="1059">MSTP loop protection · core-01 root</text>
+    <use href="#check" x="1188" y="1072" width="13" height="13"/><text x="1207" y="1083">OSPF dynamic routing (1 s / 3 s)</text>
+    <use href="#check" x="1188" y="1096" width="13" height="13"/><text x="1207" y="1107">NAT + port-forward to the DMZ</text>
+    <use href="#check" x="1420" y="976" width="13" height="13"/><text x="1439" y="987">nftables firewall · default drop</text>
+    <use href="#check" x="1420" y="1000" width="13" height="13"/><text x="1439" y="1011">Isolated iSCSI SAN · per-host ACL</text>
+    <use href="#check" x="1420" y="1024" width="13" height="13"/><text x="1439" y="1035">DB host firewall (defense in depth)</text>
+    <use href="#check" x="1420" y="1048" width="13" height="13"/><text x="1439" y="1059">OOB management · VRF MGMT</text>
+    <use href="#check" x="1420" y="1072" width="13" height="13"/><text x="1439" y="1083">Zabbix SNMP + ICMP · syslog</text>
+    <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">20/20 automated tests</text>
+  </g>
+  <line x1="1188" y1="1124" x2="1632" y2="1124" stroke="#e2e8f0"/>
+  <text x="1188" y="1142" class="ps">Changed from the original design: pfSense → FRR + nftables · HSRP → VRRP ·</text>
+  <text x="1188" y="1156" class="ps">Rapid-PVST → MSTP · MGMT-SW → containerlab OOB network · Zabbix on OOB</text>
+
+  <!-- footer -->
+  <text x="30" y="1194" class="ps">Containerlab 0.79 · Arista cEOS-lab 4.33 · FRRouting · nftables · Debian services (nginx, BIND9, MariaDB, tgt, rsyslog) · Zabbix 7.0 · Windows 11 + WSL2 Ubuntu 24.04</text>
+</svg>

@@ -1,0 +1,256 @@
+# =====================================================================
+#  Mini Data Center - Containerlab topology
+#  Network & building architecture lab (ESPRIT) - no VM / nested virtualization
+#
+#  Deploy : ./deploy.sh   (wraps containerlab deploy, see README)
+#  Destroy: containerlab destroy -t mini-dc.clab.yml --cleanup   (no sudo: clab_admins group)
+#
+#  "group" = building / room. TopoViewer and `containerlab graph` use it
+#  to draw the nodes grouped like the site diagram.
+# =====================================================================
+name: mini-dc
+
+mgmt:
+  network: dc-oob                 # Out-of-band management network (VLAN 10 role)
+  ipv4-subnet: 10.10.10.0/24      # gateway = 10.10.10.1
+
+topology:
+  defaults:
+    binds:
+      - ./:/lab                   # every node sees the lab folder at /lab
+
+  kinds:
+    arista_ceos:
+      image: ceos:latest          # import it first, see README
+    linux:
+      image: dc-host:latest       # built by setup.sh
+
+  nodes:
+    # ------------------------------------------------ Internet (outside)
+    isp-a:
+      kind: linux
+      image: dc-router:latest
+      group: "Internet"
+      mgmt-ipv4: 10.10.10.201
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/isp.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+    isp-b:
+      kind: linux
+      image: dc-router:latest
+      group: "Internet"
+      mgmt-ipv4: 10.10.10.202
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/isp.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+
+    # ------------------------------------ Batiment informatique - Salle reseau (MMR)
+    edge-r1:
+      kind: linux
+      image: dc-router:latest
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.31
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/edge-r1.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+    edge-r2:
+      kind: linux
+      image: dc-router:latest
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.32
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/edge-r2.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+    fw-01:
+      kind: linux
+      image: dc-router:latest
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.40
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/fw-01.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+    core-01:
+      kind: arista_ceos
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.11
+      startup-config: configs/ceos/core-01.cfg
+    core-02:
+      kind: arista_ceos
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.12
+      startup-config: configs/ceos/core-02.cfg
+      startup-delay: 30              # boot switches one after another
+
+    # ------------------------------------------------ DMZ (VLAN 60)
+    dmz-sw:
+      kind: linux
+      group: "DMZ"
+      mgmt-ipv4: 10.10.10.71
+      exec: [sh /lab/scripts/init-bridge.sh]
+    web-dmz01:
+      kind: linux
+      group: "DMZ"
+      mgmt-ipv4: 10.10.10.108
+      exec: [bash /lab/scripts/init-host.sh]
+    web-dmz02:
+      kind: linux
+      group: "DMZ"
+      mgmt-ipv4: 10.10.10.109
+      exec: [bash /lab/scripts/init-host.sh]
+
+    # ------------------------------ Batiment informatique - Salle serveurs 1 (Rack A)
+    tor-01:
+      kind: arista_ceos
+      group: "Bat. informatique - Salle serveurs 1"
+      mgmt-ipv4: 10.10.10.21
+      startup-config: configs/ceos/tor-01.cfg
+      startup-delay: 60              # boot switches one after another
+    web01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 1"
+      mgmt-ipv4: 10.10.10.101
+      exec: [bash /lab/scripts/init-host.sh]
+    app01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 1"
+      mgmt-ipv4: 10.10.10.102
+      exec: [bash /lab/scripts/init-host.sh]
+    dns01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 1"
+      mgmt-ipv4: 10.10.10.103
+      exec: [bash /lab/scripts/init-host.sh]
+
+    # ------------------------------ Batiment informatique - Salle serveurs 2 (Rack B)
+    tor-02:
+      kind: arista_ceos
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.22
+      startup-config: configs/ceos/tor-02.cfg
+      startup-delay: 90              # boot switches one after another
+    db01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.104
+      exec: [bash /lab/scripts/init-host.sh]
+    ad01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.105
+      exec: [bash /lab/scripts/init-host.sh]
+    backup01:
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.106
+      exec: [bash /lab/scripts/init-host.sh]
+
+    # ------------------------------ Batiment informatique - Zone stockage (SAN, VLAN 30)
+    storage-sw:
+      kind: linux
+      group: "Bat. informatique - Zone stockage"
+      mgmt-ipv4: 10.10.10.72
+      exec: [sh /lab/scripts/init-bridge.sh]
+    storage01:
+      kind: linux
+      group: "Bat. informatique - Zone stockage"
+      mgmt-ipv4: 10.10.10.107
+      exec: [bash /lab/scripts/init-host.sh]
+
+    # ------------------------------ Batiment logistique (NOC, users, admin)
+    noc-sw:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.73
+      exec: [sh /lab/scripts/init-bridge.sh stp]
+    noc-ws:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.111
+      exec: [bash /lab/scripts/init-host.sh]
+    syslog01:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.110
+      exec: [bash /lab/scripts/init-host.sh]
+    user-sw:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.74
+      exec: [sh /lab/scripts/init-bridge.sh stp]
+    pc-01:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.112
+      exec: [bash /lab/scripts/init-host.sh]
+    pc-02:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.113
+      exec: [bash /lab/scripts/init-host.sh]
+    admin-pc:
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.100
+
+    # ------------------------------ Monitoring (Zabbix on the OOB network)
+    zbx-db:
+      kind: linux
+      image: postgres:16-alpine
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.52
+      env: {POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix}
+    monitor01:
+      kind: linux
+      image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.50
+      env: {DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix}
+    zbx-web:
+      kind: linux
+      image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.51
+      env: {ZBX_SERVER_HOST: 10.10.10.50, DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix, PHP_TZ: Africa/Tunis}
+      ports: ["8080:8080"]
+
+  links:
+    # WAN
+    - endpoints: ["isp-a:eth1", "edge-r1:eth1"]
+    - endpoints: ["isp-b:eth1", "edge-r2:eth1"]
+    # Edge <-> firewall
+    - endpoints: ["edge-r1:eth2", "fw-01:eth1"]
+    - endpoints: ["edge-r2:eth2", "fw-01:eth2"]
+    # Firewall <-> cores (routed, OSPF)
+    - endpoints: ["fw-01:eth3", "core-01:eth5"]
+    - endpoints: ["fw-01:eth4", "core-02:eth5"]
+    # DMZ
+    - endpoints: ["fw-01:eth5", "dmz-sw:eth1"]
+    - endpoints: ["dmz-sw:eth2", "web-dmz01:eth1"]
+    - endpoints: ["dmz-sw:eth3", "web-dmz02:eth1"]
+    # Core <-> core LACP (Port-Channel1)
+    - endpoints: ["core-01:eth1", "core-02:eth1"]
+    - endpoints: ["core-01:eth2", "core-02:eth2"]
+    # Cores <-> ToRs (every ToR dual-homed)
+    - endpoints: ["core-01:eth3", "tor-01:eth1"]
+    - endpoints: ["core-02:eth3", "tor-01:eth2"]
+    - endpoints: ["core-01:eth4", "tor-02:eth1"]
+    - endpoints: ["core-02:eth4", "tor-02:eth2"]
+    # ToR <-> ToR LACP (Port-Channel1)
+    - endpoints: ["tor-01:eth3", "tor-02:eth3"]
+    - endpoints: ["tor-01:eth4", "tor-02:eth4"]
+    # Rack A
+    - endpoints: ["tor-01:eth5", "web01:eth1"]
+    - endpoints: ["tor-01:eth6", "app01:eth1"]
+    - endpoints: ["tor-01:eth7", "dns01:eth1"]
+    # Rack B
+    - endpoints: ["tor-02:eth5", "db01:eth1"]
+    - endpoints: ["tor-02:eth6", "ad01:eth1"]
+    - endpoints: ["tor-02:eth7", "backup01:eth1"]
+    # SAN - dedicated storage NICs
+    - endpoints: ["storage-sw:eth1", "storage01:eth1"]
+    - endpoints: ["storage-sw:eth2", "db01:eth2"]
+    - endpoints: ["storage-sw:eth3", "backup01:eth2"]
+    # Inter-building fibers (both cores -> logistics)
+    - endpoints: ["core-01:eth6", "noc-sw:eth1"]
+    - endpoints: ["core-02:eth6", "noc-sw:eth2"]
+    - endpoints: ["core-01:eth7", "user-sw:eth1"]
+    - endpoints: ["core-02:eth7", "user-sw:eth2"]
+    - endpoints: ["noc-sw:eth3", "noc-ws:eth1"]
+    - endpoints: ["noc-sw:eth4", "syslog01:eth1"]
+    - endpoints: ["user-sw:eth3", "pc-01:eth1"]
+    - endpoints: ["user-sw:eth4", "pc-02:eth1"]

@@ -1,0 +1,57 @@
+#!/usr/sbin/nft -f
+# =====================================================================
+# FW-01 security policy (replaces pfSense)
+#   outside = eth1 (edge-r1), eth2 (edge-r2)
+#   inside  = eth3 (core-01), eth4 (core-02)
+#   dmz     = eth5 (VLAN 60)
+#   eth0    = containerlab OOB management, never forwarded
+# Default: DROP. Everything allowed is listed explicitly below.
+# =====================================================================
+flush ruleset
+
+define OUTSIDE  = { "eth1", "eth2" }
+define INSIDE   = { "eth3", "eth4" }
+define DMZ      = "eth5"
+define DMZ_WEB  = { 10.10.60.10, 10.10.60.11 }
+define DB01     = 10.10.20.30
+define DNS01    = 10.10.20.40
+
+table inet filter {
+
+    chain input {
+        type filter hook input priority filter; policy drop;
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+        ip protocol 89 accept                      comment "OSPF"
+        ip protocol icmp accept                    comment "ping the firewall"
+        iifname "eth0" tcp dport 22 accept         comment "SSH from OOB only"
+        counter comment "dropped to firewall"
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+        ct state established,related accept
+        ct state invalid drop
+        iifname "eth0" drop                        comment "mgmt never transits"
+        oifname "eth0" drop
+
+        # --- Inside (servers, users, NOC) may go anywhere -------------------
+        iifname $INSIDE accept
+
+        # --- Internet -> DMZ: web only --------------------------------------
+        iifname $OUTSIDE oifname $DMZ ip daddr $DMZ_WEB tcp dport { 80, 443 } counter accept
+        iifname $OUTSIDE oifname $DMZ ip daddr $DMZ_WEB icmp type echo-request accept
+
+        # --- DMZ -> Inside: only the two flows the web servers need ----------
+        iifname $DMZ oifname $INSIDE ip daddr $DB01  tcp dport 3306 counter accept comment "web -> MariaDB"
+        iifname $DMZ oifname $INSIDE ip daddr $DNS01 meta l4proto { tcp, udp } th dport 53 accept comment "DNS"
+
+        # --- DMZ -> Internet: updates only ---------------------------------
+        iifname $DMZ oifname $OUTSIDE tcp dport { 80, 443 } accept
+        iifname $DMZ oifname $OUTSIDE udp dport 53 accept
+
+        # --- Everything else is logged and dropped ---------------------------
+        counter log prefix "FW-01 DROP: " level info
+    }
+}

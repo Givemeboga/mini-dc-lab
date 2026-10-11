@@ -1,0 +1,1327 @@
+{
+  "freeTextAnnotations": [
+    {
+      "id": "t-title",
+      "text": "RAM+ Data Center ",
+      "position": {
+        "x": 517.9824515771404,
+        "y": -707.6658121680101
+      },
+      "fontSize": 72,
+      "fontColor": "#1e3a8a",
+      "fontWeight": "bold",
+      "fontStyle": "italic",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-sub",
+      "text": "30 nodes · 34 links · cEOS · FRR · nftables · Zabbix · 20/20 tests",
+      "position": {
+        "x": 415.58214057039163,
+        "y": -504.1359249630083
+      },
+      "fontSize": 27,
+      "fontColor": "#475569",
+      "fontWeight": "normal",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-lacp1",
+      "text": "LACP 2×10G · VLAN 99",
+      "position": {
+        "x": 660,
+        "y": 461
+      },
+      "fontSize": 24,
+      "fontColor": "#c81e1e",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-lacp2",
+      "text": "LACP 2×10G",
+      "position": {
+        "x": 682,
+        "y": 825
+      },
+      "fontSize": 24,
+      "fontColor": "#c81e1e",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-ospf1",
+      "text": "OSPF /30",
+      "position": {
+        "x": 478,
+        "y": 362
+      },
+      "fontSize": 22,
+      "fontColor": "#6d28d9",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-ospf2",
+      "text": "OSPF /30",
+      "position": {
+        "x": 1015,
+        "y": 362
+      },
+      "fontSize": 22,
+      "fontColor": "#6d28d9",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-dmzleg",
+      "text": "DMZ leg",
+      "position": {
+        "x": 1146,
+        "y": 218
+      },
+      "fontSize": 22,
+      "fontColor": "#be185d",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-fiber",
+      "text": "Fibers ×4 → logistics (STP)",
+      "position": {
+        "x": 1276,
+        "y": 435
+      },
+      "fontSize": 24,
+      "fontColor": "#0f766e",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-iscsi",
+      "text": "iSCSI · TCP 3260",
+      "position": {
+        "x": 580,
+        "y": 1389
+      },
+      "fontSize": 24,
+      "fontColor": "#b45309",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-lun",
+      "text": "LUN db → DB01\nLUN backup → BACKUP01\nACL per initiator IP\nnot routed",
+      "position": {
+        "x": 1262,
+        "y": 1334
+      },
+      "fontSize": 22,
+      "fontColor": "#78350f",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 319
+    },
+    {
+      "id": "t-v20a",
+      "text": "VLAN 20 · Servers",
+      "position": {
+        "x": 65,
+        "y": 1192
+      },
+      "fontSize": 24,
+      "fontColor": "#15803d",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-v20b",
+      "text": "VLAN 20 · Servers",
+      "position": {
+        "x": 863,
+        "y": 1192
+      },
+      "fontSize": 24,
+      "fontColor": "#15803d",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-v40",
+      "text": "VLAN 40",
+      "position": {
+        "x": 1356,
+        "y": 1192
+      },
+      "fontSize": 24,
+      "fontColor": "#6d28d9",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-oob",
+      "text": "No cables by design: OOB only (eth0 of all 30 nodes). Zabbix polls everything from here.",
+      "position": {
+        "x": 1747,
+        "y": 264
+      },
+      "fontSize": 22,
+      "fontColor": "#475569",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 1000
+    },
+    {
+      "id": "t-legend",
+      "text": "Links: LACP 2×10G · 802.1Q trunk · access · routed /30 OSPF\nWAN · DMZ leg · iSCSI (dedicated NICs) · inter-building fiber\nDual-ISP failover ≈0.2 s · VRRP ≈2.8 s · MSTP · nftables\nIsolated SAN · OOB in VRF MGMT · Zabbix · 20/20 tests",
+      "position": {
+        "x": 1726,
+        "y": 1404
+      },
+      "fontSize": 22,
+      "fontColor": "#0f172a",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 1040
+    },
+    {
+      "id": "t-vlan-h",
+      "text": "VLAN plan & IP addressing",
+      "position": {
+        "x": -770,
+        "y": -20
+      },
+      "fontSize": 30,
+      "fontColor": "#0f172a",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-vlan",
+      "text": "10  OOB mgmt      10.10.10.0/24\n20  Servers       10.10.20.0/24\n30  Storage       10.10.30.0/24  (not routed)\n40  Backup        10.10.40.0/24\n50  Users         10.10.50.0/24\n60  DMZ           10.10.60.0/24\n70  Monitoring    10.10.70.0/24\n99  Core transit  10.10.99.8/30\n\nRouted /30 · OSPF (1 s / 3 s)\nWAN           10.0.0.0 · 10.0.0.4\nEdges ↔ FW    10.0.1.0 · 10.0.1.4\nFW ↔ cores    10.10.99.0 · 10.10.99.4\n\nGateways: VRRP .1 — CORE-01 master,\nCORE-02 backup · DMZ gw FW-01 .1",
+      "position": {
+        "x": -770,
+        "y": 30
+      },
+      "fontSize": 28,
+      "fontColor": "#0f172a",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 680
+    },
+    {
+      "id": "t-techA-h",
+      "text": "Bâtiment technique A",
+      "position": {
+        "x": -770,
+        "y": 812
+      },
+      "fontSize": 30,
+      "fontColor": "#78350f",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-techA",
+      "text": "Physical only — not emulated\n\nTGBT A — main switchboard, grid feed A\nUPS A — A-side PDU of every rack\nGenerator A — diesel, auto-start\nChillers / CRAC A — rooms 1 & 2\n→ Power path A (2N)",
+      "position": {
+        "x": -770,
+        "y": 858
+      },
+      "fontSize": 22,
+      "fontColor": "#78350f",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 680
+    },
+    {
+      "id": "t-techB-h",
+      "text": "Bâtiment technique B",
+      "position": {
+        "x": -770,
+        "y": 1222
+      },
+      "fontSize": 30,
+      "fontColor": "#78350f",
+      "fontWeight": "bold",
+      "textAlign": "left"
+    },
+    {
+      "id": "t-techB",
+      "text": "Physical only — not emulated\n\nUPS B — B-side PDU of every rack\nGenerator B — independent from A\nChillers / CRAC B — N+1 cooling\nFire suppression — inert gas\nAccess control — badge + CCTV\n→ Power path B (2N)",
+      "position": {
+        "x": -770,
+        "y": 1268
+      },
+      "fontSize": 22,
+      "fontColor": "#78350f",
+      "fontWeight": "normal",
+      "textAlign": "left",
+      "width": 680
+    },
+    {
+      "id": "nd-isp-a",
+      "text": "NAT to Internet",
+      "position": {
+        "x": 460,
+        "y": -103
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-isp-b",
+      "text": "NAT to Internet",
+      "position": {
+        "x": 924,
+        "y": -103
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-edge-r1",
+      "text": "FRR · ISP A primary",
+      "position": {
+        "x": 460,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-edge-r2",
+      "text": "FRR · ISP B backup",
+      "position": {
+        "x": 924,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-fw-01",
+      "text": "OSPF + nftables",
+      "position": {
+        "x": 692,
+        "y": 369
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-core-01",
+      "text": "VRRP master · MSTP root",
+      "position": {
+        "x": 373,
+        "y": 586
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-core-02",
+      "text": "VRRP backup",
+      "position": {
+        "x": 1011,
+        "y": 586
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-dmz-sw",
+      "text": "bridge",
+      "position": {
+        "x": 1287,
+        "y": 202
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-web-dmz01",
+      "text": "10.10.60.10",
+      "position": {
+        "x": 1234,
+        "y": 369
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 170
+    },
+    {
+      "id": "nd-web-dmz02",
+      "text": "10.10.60.11",
+      "position": {
+        "x": 1408,
+        "y": 369
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 170
+    },
+    {
+      "id": "nd-tor-01",
+      "text": "cEOS L2 ToR",
+      "position": {
+        "x": 293,
+        "y": 950
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-web01",
+      "text": "10.10.20.10 · nginx",
+      "position": {
+        "x": 47,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-app01",
+      "text": "10.10.20.20 · API",
+      "position": {
+        "x": 293,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-dns01",
+      "text": "10.10.20.40 · BIND9",
+      "position": {
+        "x": 540,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-tor-02",
+      "text": "cEOS L2 ToR",
+      "position": {
+        "x": 1091,
+        "y": 950
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-db01",
+      "text": "10.10.20.30 · MariaDB",
+      "position": {
+        "x": 844,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-ad01",
+      "text": "10.10.20.50",
+      "position": {
+        "x": 1091,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-backup01",
+      "text": "10.10.40.10",
+      "position": {
+        "x": 1337,
+        "y": 1145
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-storage-sw",
+      "text": "isolated bridge",
+      "position": {
+        "x": 315,
+        "y": 1514
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-storage01",
+      "text": "10.10.30.10 · iSCSI",
+      "position": {
+        "x": 982,
+        "y": 1514
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-noc-sw",
+      "text": "bridge · STP",
+      "position": {
+        "x": 1721,
+        "y": 848
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-noc-ws",
+      "text": "10.10.70.10",
+      "position": {
+        "x": 2084,
+        "y": 543
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-syslog01",
+      "text": "10.10.70.20",
+      "position": {
+        "x": 2461,
+        "y": 543
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-user-sw",
+      "text": "bridge · STP",
+      "position": {
+        "x": 1721,
+        "y": 1094
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-pc-01",
+      "text": "10.10.50.101",
+      "position": {
+        "x": 2084,
+        "y": 1239
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-pc-02",
+      "text": "10.10.50.102",
+      "position": {
+        "x": 2461,
+        "y": 1239
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-monitor01",
+      "text": "Zabbix server",
+      "position": {
+        "x": 1975,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-zbx-web",
+      "text": "UI :8080",
+      "position": {
+        "x": 2222,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-zbx-db",
+      "text": "PostgreSQL",
+      "position": {
+        "x": 2468,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-admin-pc",
+      "text": "10.10.10.100",
+      "position": {
+        "x": 1729,
+        "y": 195
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    }
+  ],
+  "freeShapeAnnotations": [
+    {
+      "id": "s-v20a",
+      "shapeType": "rectangle",
+      "position": {
+        "x": 51,
+        "y": 964
+      },
+      "width": 725,
+      "height": 268,
+      "fillColor": "#34b87a",
+      "fillOpacity": 0.1,
+      "borderColor": "#34b87a",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "zIndex": -1
+    },
+    {
+      "id": "s-v20b",
+      "shapeType": "rectangle",
+      "position": {
+        "x": 848,
+        "y": 964
+      },
+      "width": 478,
+      "height": 268,
+      "fillColor": "#34b87a",
+      "fillOpacity": 0.1,
+      "borderColor": "#34b87a",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "zIndex": -1
+    },
+    {
+      "id": "s-v40",
+      "shapeType": "rectangle",
+      "position": {
+        "x": 1341,
+        "y": 964
+      },
+      "width": 232,
+      "height": 268,
+      "fillColor": "#9b7bea",
+      "fillOpacity": 0.12,
+      "borderColor": "#9b7bea",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "zIndex": -1
+    },
+    {
+      "id": "s-legend",
+      "shapeType": "rectangle",
+      "position": {
+        "x": 1696,
+        "y": 1378
+      },
+      "width": 1088,
+      "height": 246,
+      "fillColor": "#ffffff",
+      "fillOpacity": 1,
+      "borderColor": "#cbd5e1",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "zIndex": -3
+    },
+    {
+      "id": "s-vlan",
+      "shapeType": "rectangle",
+      "position": {
+        "x": -800,
+        "y": -43
+      },
+      "width": 740,
+      "height": 800,
+      "fillColor": "#ffffff",
+      "fillOpacity": 1,
+      "borderColor": "#cbd5e1",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "cornerRadius": 10,
+      "zIndex": -3
+    },
+    {
+      "id": "s-techA",
+      "shapeType": "rectangle",
+      "position": {
+        "x": -800,
+        "y": 790
+      },
+      "width": 740,
+      "height": 380,
+      "fillColor": "#fffbeb",
+      "fillOpacity": 1,
+      "borderColor": "#d99a1e",
+      "borderWidth": 2,
+      "borderStyle": "dashed",
+      "cornerRadius": 10,
+      "zIndex": -3
+    },
+    {
+      "id": "s-techB",
+      "shapeType": "rectangle",
+      "position": {
+        "x": -800,
+        "y": 1200
+      },
+      "width": 740,
+      "height": 424,
+      "fillColor": "#fffbeb",
+      "fillOpacity": 1,
+      "borderColor": "#d99a1e",
+      "borderWidth": 2,
+      "borderStyle": "dashed",
+      "cornerRadius": 10,
+      "zIndex": -3
+    }
+  ],
+  "trafficRateAnnotations": [],
+  "groupStyleAnnotations": [
+    {
+      "id": "g-internet",
+      "name": "Internet · ISP A / ISP B",
+      "level": "1",
+      "position": {
+        "x": 362,
+        "y": -270
+      },
+      "width": 899,
+      "height": 220,
+      "backgroundColor": "#8a96aa",
+      "backgroundOpacity": 6,
+      "borderColor": "#94a3b8",
+      "borderWidth": 2,
+      "borderStyle": "dashed",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "zIndex": -3
+    },
+    {
+      "id": "g-it",
+      "name": "Bâtiment informatique · IT building",
+      "level": "1",
+      "position": {
+        "x": 0,
+        "y": -44
+      },
+      "width": 1624,
+      "height": 1668,
+      "backgroundColor": "#e2e8f0",
+      "backgroundOpacity": 12,
+      "borderColor": "#94a3b8",
+      "borderWidth": 2,
+      "borderStyle": "dashed",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "zIndex": -3
+    },
+    {
+      "id": "g-mmr",
+      "name": "Salle réseau · MMR",
+      "level": "2",
+      "position": {
+        "x": 29,
+        "y": 0
+      },
+      "width": 1566,
+      "height": 638,
+      "backgroundColor": "#ffffff",
+      "backgroundOpacity": 70,
+      "borderColor": "#cbd5e1",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-it",
+      "groupId": "g-it",
+      "zIndex": -2
+    },
+    {
+      "id": "g-dmz",
+      "name": "DMZ · VLAN 60",
+      "level": "2",
+      "position": {
+        "x": 1247,
+        "y": 29
+      },
+      "width": 319,
+      "height": 410,
+      "backgroundColor": "#e0527d",
+      "backgroundOpacity": 10,
+      "borderColor": "#e0527d",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-it",
+      "groupId": "g-it",
+      "zIndex": -2
+    },
+    {
+      "id": "g-s1",
+      "name": "Salle serveurs 1 · Rack A",
+      "level": "2",
+      "position": {
+        "x": 29,
+        "y": 682
+      },
+      "width": 768,
+      "height": 580,
+      "backgroundColor": "#ffffff",
+      "backgroundOpacity": 70,
+      "borderColor": "#cbd5e1",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-it",
+      "groupId": "g-it",
+      "zIndex": -2
+    },
+    {
+      "id": "g-s2",
+      "name": "Salle serveurs 2 · Rack B",
+      "level": "2",
+      "position": {
+        "x": 826,
+        "y": 682
+      },
+      "width": 768,
+      "height": 580,
+      "backgroundColor": "#ffffff",
+      "backgroundOpacity": 70,
+      "borderColor": "#cbd5e1",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-it",
+      "groupId": "g-it",
+      "zIndex": -2
+    },
+    {
+      "id": "g-sto",
+      "name": "Zone stockage · SAN iSCSI · VLAN 30",
+      "level": "2",
+      "position": {
+        "x": 29,
+        "y": 1290
+      },
+      "width": 1566,
+      "height": 290,
+      "backgroundColor": "#f0b429",
+      "backgroundOpacity": 12,
+      "borderColor": "#f0b429",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-it",
+      "groupId": "g-it",
+      "zIndex": -2
+    },
+    {
+      "id": "g-log",
+      "name": "Bâtiment logistique",
+      "level": "1",
+      "position": {
+        "x": 1696,
+        "y": -44
+      },
+      "width": 1088,
+      "height": 1348,
+      "backgroundColor": "#e2e8f0",
+      "backgroundOpacity": 12,
+      "borderColor": "#94a3b8",
+      "borderWidth": 2,
+      "borderStyle": "dashed",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "zIndex": -3
+    },
+    {
+      "id": "g-noc",
+      "name": "NOC · VLAN 70",
+      "level": "2",
+      "position": {
+        "x": 1726,
+        "y": 334
+      },
+      "width": 1030,
+      "height": 566,
+      "backgroundColor": "#20a386",
+      "backgroundOpacity": 10,
+      "borderColor": "#20a386",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-log",
+      "groupId": "g-log",
+      "zIndex": -2
+    },
+    {
+      "id": "g-users",
+      "name": "Users · VLAN 50",
+      "level": "2",
+      "position": {
+        "x": 1726,
+        "y": 921
+      },
+      "width": 1030,
+      "height": 362,
+      "backgroundColor": "#4f8ef7",
+      "backgroundOpacity": 10,
+      "borderColor": "#4f8ef7",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-log",
+      "groupId": "g-log",
+      "zIndex": -2
+    },
+    {
+      "id": "g-mon",
+      "name": "Management · OOB 10.10.10.0/24",
+      "level": "2",
+      "position": {
+        "x": 1726,
+        "y": 0
+      },
+      "width": 1030,
+      "height": 304,
+      "backgroundColor": "#64748b",
+      "backgroundOpacity": 10,
+      "borderColor": "#64748b",
+      "borderWidth": 1,
+      "borderStyle": "solid",
+      "borderRadius": 10,
+      "labelColor": "#0f172a",
+      "labelPosition": "top-left",
+      "parentId": "g-log",
+      "groupId": "g-log",
+      "zIndex": -2
+    }
+  ],
+  "networkNodeAnnotations": [],
+  "nodeAnnotations": [
+    {
+      "id": "isp-a",
+      "position": {
+        "x": 525,
+        "y": -237
+      },
+      "icon": "dc-cloud",
+      "groupId": "g-internet",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "isp-b",
+      "position": {
+        "x": 989,
+        "y": -237
+      },
+      "icon": "dc-cloud",
+      "groupId": "g-internet",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "edge-r1",
+      "position": {
+        "x": 525,
+        "y": 61
+      },
+      "icon": "dc-router",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "edge-r2",
+      "position": {
+        "x": 989,
+        "y": 61
+      },
+      "icon": "dc-router",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "fw-01",
+      "position": {
+        "x": 757,
+        "y": 235
+      },
+      "icon": "dc-firewall",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "core-01",
+      "position": {
+        "x": 438,
+        "y": 452
+      },
+      "icon": "dc-core",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "core-02",
+      "position": {
+        "x": 1076,
+        "y": 452
+      },
+      "icon": "dc-core",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "dmz-sw",
+      "position": {
+        "x": 1352,
+        "y": 68
+      },
+      "icon": "dc-switch",
+      "groupId": "g-dmz",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "web-dmz01",
+      "position": {
+        "x": 1264,
+        "y": 235
+      },
+      "icon": "dc-server",
+      "groupId": "g-dmz",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "web-dmz02",
+      "position": {
+        "x": 1438,
+        "y": 235
+      },
+      "icon": "dc-server",
+      "groupId": "g-dmz",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "tor-01",
+      "position": {
+        "x": 358,
+        "y": 816
+      },
+      "icon": "dc-switch",
+      "groupId": "g-s1",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "web01",
+      "position": {
+        "x": 112,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s1",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "app01",
+      "position": {
+        "x": 358,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s1",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "dns01",
+      "position": {
+        "x": 605,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s1",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "tor-02",
+      "position": {
+        "x": 1156,
+        "y": 816
+      },
+      "icon": "dc-switch",
+      "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "db01",
+      "position": {
+        "x": 909,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "ad01",
+      "position": {
+        "x": 1156,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "backup01",
+      "position": {
+        "x": 1402,
+        "y": 1011
+      },
+      "icon": "dc-server",
+      "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "storage-sw",
+      "position": {
+        "x": 380,
+        "y": 1380
+      },
+      "icon": "dc-switch",
+      "groupId": "g-sto",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "storage01",
+      "position": {
+        "x": 1047,
+        "y": 1380
+      },
+      "icon": "dc-storage",
+      "groupId": "g-sto",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "noc-sw",
+      "position": {
+        "x": 1786,
+        "y": 714
+      },
+      "icon": "dc-switch",
+      "groupId": "g-noc",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "noc-ws",
+      "position": {
+        "x": 2149,
+        "y": 409
+      },
+      "icon": "dc-pc",
+      "groupId": "g-noc",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "syslog01",
+      "position": {
+        "x": 2526,
+        "y": 409
+      },
+      "icon": "dc-server",
+      "groupId": "g-noc",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "user-sw",
+      "position": {
+        "x": 1786,
+        "y": 960
+      },
+      "icon": "dc-switch",
+      "groupId": "g-users",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "pc-01",
+      "position": {
+        "x": 2149,
+        "y": 1105
+      },
+      "icon": "dc-pc",
+      "groupId": "g-users",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "pc-02",
+      "position": {
+        "x": 2526,
+        "y": 1105
+      },
+      "icon": "dc-pc",
+      "groupId": "g-users",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "monitor01",
+      "position": {
+        "x": 2040,
+        "y": 61
+      },
+      "icon": "dc-server",
+      "groupId": "g-mon",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "zbx-web",
+      "position": {
+        "x": 2287,
+        "y": 61
+      },
+      "icon": "dc-server",
+      "groupId": "g-mon",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "zbx-db",
+      "position": {
+        "x": 2533,
+        "y": 61
+      },
+      "icon": "dc-server",
+      "groupId": "g-mon",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "admin-pc",
+      "position": {
+        "x": 1794,
+        "y": 61
+      },
+      "icon": "dc-pc",
+      "groupId": "g-mon",
+      "labelPosition": "bottom"
+    }
+  ],
+  "edgeAnnotations": [],
+  "aliasEndpointAnnotations": [],
+  "viewerSettings": {
+    "linkLabelMode": "on-select",
+    "lastNonTelemetryLinkLabelMode": "on-select",
+    "gridBgColor": "#ffffff",
+    "gridColor": "#e2e8f0",
+    "gridStyle": "dotted",
+    "gridLineWidth": 0.5,
+    "telemetryNodeSizePx": 110
+  }
+}

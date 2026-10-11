@@ -1,0 +1,28 @@
+#!/usr/sbin/nft -f
+# EDGE-R1: NAT toward ISP-A + publishes the DMZ web server 10.10.60.10 on port 80
+flush ruleset
+
+table ip nat {
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        # Port-forward: public IP of this edge, TCP 80 -> DMZ web server
+        iifname "eth1" tcp dport 80 counter dnat to 10.10.60.10
+    }
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        # Everything leaving to the ISP is hidden behind this edge's WAN IP
+        oifname "eth1" masquerade
+        # Port-forwarded traffic is also source-NATed so the reply comes back
+        # through THIS edge (otherwise it would leave via the other ISP).
+        oifname "eth2" ct status dnat masquerade
+    }
+}
+
+table inet edge {
+    chain input {
+        type filter hook input priority filter; policy accept;
+        iifname "eth1" ct state established,related accept
+        iifname "eth1" ip protocol icmp accept
+        iifname "eth1" counter drop comment "nothing on the router itself is exposed to the ISP"
+    }
+}
