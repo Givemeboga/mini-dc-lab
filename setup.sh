@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-time setup: builds the two lab images and checks the Arista cEOS image.
-# Run inside the WSL-Containerlab distro, from the lab folder:  ./setup.sh
+# Run in WSL Ubuntu, from the lab folder:  ./setup.sh   (see README section 2)
 set -e
 cd "$(dirname "$0")"
 

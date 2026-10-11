@@ -23,47 +23,237 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward to the DMZ
 
 | | |
 |---|---|
-| Windows 11 (Home is fine) | WSL **2.4.4+** (`wsl --version`), `.wslconfig` with `memory=16GB` |
-| RAM | **12 GB+ free recommended** (4 × cEOS ≈ 5–6 GB, Zabbix ≈ 1 GB, the rest is small) |
-| Disk | ~6 GB |
-| Arista cEOS-lab | free download, arista.com account |
+| OS | Windows 11 (Home is fine) or Windows 10 22H2, **virtualization enabled in the BIOS/UEFI** |
+| RAM | **32 GB recommended** (WSL gets 16 GB: 4 × cEOS ≈ 5–6 GB, Zabbix ≈ 1 GB, the rest is small). 16 GB machines: see the note in step 1 |
+| Disk | ~10 GB free (images ≈ 4 GB + Ubuntu) |
+| Accounts | GitHub account (invited to this repo) · free **arista.com** account for the cEOS image |
+| Time | ~1 h the first time (mostly downloads and image builds), then 5–8 min per deploy |
+
+Versions used by the team: WSL2 + **Ubuntu 24.04**, **Docker Engine 27.x** (not Docker Desktop),
+**Containerlab 0.79.0**, **Arista cEOS-lab 4.33.10M**.
 
 > If you disabled Hyper-V features while fighting GNS3, turn them back on:
 > enable **Virtual Machine Platform**, run `bcdedit /set hypervisorlaunchtype auto` (admin), reboot.
 
-## 2. One-time install
+## 2. First run — step by step
 
-1. **WSL-Containerlab**: download `clab.wsl` from
-   <https://github.com/srl-labs/wsl-containerlab/releases>, double-click it, then launch
-   `wsl -d Containerlab` and finish the first-run wizard.
-2. **VS Code** (on Windows) + extensions **WSL** and **Containerlab** (srl-labs).
-3. **cEOS**: on arista.com → Software Downloads → *cEOS-lab* → `cEOS64-lab-4.3x.x.tar.xz`.
-   Copy it into WSL and import it:
-   ```bash
-   docker import cEOS64-lab-4.33.1F.tar.xz ceos:latest
-   ```
-4. Copy this folder into WSL (e.g. `~/mini-dc-lab`) and build the lab images:
-   ```bash
-   cd ~/mini-dc-lab
-   ./setup.sh
-   ```
+Do the steps in order. Commands marked **PowerShell** run on Windows; everything else runs in the
+**Ubuntu** terminal (Windows Terminal → ˅ → Ubuntu-24.04).
 
-## 3. Run it
+### Step 1 — Install WSL2 and Ubuntu 24.04 (PowerShell as Administrator)
 
-> **Never press Ctrl+C in the deploy window** — it cancels and destroys the lab. The deploy is
-> silent for several minutes while the Arista switches boot; watch from a second window instead.
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+Reboot if asked, open **Ubuntu-24.04** from the Start menu and create your Linux user and password.
+Then check you are on WSL **2** and up to date:
+
+```powershell
+wsl --update
+wsl -l -v
+```
+
+Give WSL enough memory: create `C:\Users\<you>\.wslconfig` with
+
+```ini
+[wsl2]
+memory=16GB
+processors=6
+swap=4GB
+```
+
+and apply it with `wsl --shutdown` (PowerShell), then reopen Ubuntu.
+
+> **16 GB laptop?** Use `memory=12GB` and, before deploying, comment out the `zbx-db`, `monitor01`
+> and `zbx-web` nodes in `mini-dc.clab.yml` (saves ~1 GB).
+
+Check that systemd is running (needed for Docker) — this must print `systemd`:
 
 ```bash
-./deploy.sh                                        # 5–8 min (switches boot one after another)
-./scripts/tests.sh                                 # functional tests
-./scripts/tests.sh failover                        # failover demo
-python3 scripts/zabbix-add-hosts.py                # register devices in Zabbix
+ps -p 1 -o comm=
+```
+
+If it prints `init`, run `printf '[boot]\nsystemd=true\n' | sudo tee /etc/wsl.conf`, then `wsl --shutdown` (PowerShell) and reopen Ubuntu.
+
+### Step 2 — Install Docker Engine inside Ubuntu
+
+Use Docker's official repository (this is what the lab is tested with):
+
+```bash
+sudo apt-get update && sudo apt-get install -y ca-certificates curl git
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker $USER
+```
+
+> ⚠️ **Docker Desktop users:** if Docker Desktop is installed on Windows, open
+> *Settings → Resources → WSL integration* and **untick both** "Enable integration with my default WSL distro"
+> **and** the Ubuntu-24.04 toggle, then *Apply & restart*. Otherwise Docker Desktop takes over Ubuntu's
+> Docker socket and the deploy hangs for 15+ minutes (see Troubleshooting).
+
+### Step 3 — Install Containerlab
+
+```bash
+bash -c "$(curl -sL https://get.containerlab.dev)"
+sudo usermod -aG clab_admins $USER
+```
+
+The new groups (`docker`, `clab_admins`) only apply to new sessions: close Ubuntu, run
+`wsl --terminate Ubuntu-24.04` in **PowerShell**, and reopen Ubuntu. Then check:
+
+```bash
+groups                               # must list docker and clab_admins
+docker run --rm hello-world          # must print "Hello from Docker!"
+docker info --format '{{.Name}}'     # must print your PC name, NOT docker-desktop
+containerlab version                 # 0.79.x or newer
+```
+
+From now on, run `containerlab` **without sudo**.
+
+### Step 4 — Connect Git to GitHub (SSH)
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+ssh-keygen -t ed25519 -C "$(whoami)@wsl"      # press Enter 3 times
+cat ~/.ssh/id_ed25519.pub
+```
+
+Copy the printed line into <https://github.com/settings/ssh/new> (type: *Authentication Key*), then test:
+
+```bash
+ssh -T git@github.com      # "Hi <username>! You've successfully authenticated"
+```
+
+### Step 5 — Clone the repo (Linux filesystem, not `/mnt/c`)
+
+```bash
+mkdir -p ~/projects && cd ~/projects
+git clone git@github.com:Givemeboga/mini-dc-lab.git
+cd mini-dc-lab
+```
+
+> Always work under `~/projects/...`. A clone under `/mnt/c/...` is very slow and breaks file
+> permissions and line endings for the scripts.
+
+### Step 6 — Get the Arista cEOS image (each member downloads their own)
+
+The image is licensed by Arista, so it is **not** in the repo.
+
+1. Log in on <https://www.arista.com> → **Support → Software Download**.
+2. **EOS → Active Releases → 4.33 → EOS-4.33.10M → cEOS-lab** → download `cEOS64-lab-4.33.10M.tar.xz` (~800 MB).
+   Take the same version as the team if it is available.
+3. Import it (adapt the Windows user name):
+
+```bash
+cp /mnt/c/Users/<you>/Downloads/cEOS64-lab-4.33.10M.tar.xz ~/
+docker import ~/cEOS64-lab-4.33.10M.tar.xz ceos:latest
+docker images ceos                   # ceos  latest  ~2.6 GB
+rm ~/cEOS64-lab-4.33.10M.tar.xz      # optional, frees 800 MB
+```
+
+The tag **must** be `ceos:latest` — the topology uses that name.
+
+### Step 7 — Build the lab images (`setup.sh`, ~5–10 min)
+
+```bash
+./setup.sh
+```
+
+It raises the kernel *inotify* limits (asks your sudo password once — several cEOS will not boot
+without it), builds `dc-router` (FRR + nftables) and `dc-host` (Debian services), checks `ceos:latest`
+and pre-pulls the Zabbix/PostgreSQL images. It ends with `Ready. Deploy with: ./deploy.sh`.
+
+### Step 8 — Deploy the lab (5–8 min)
+
+```bash
+./deploy.sh
+```
+
+> 🛑 **Never press Ctrl+C in this window** — it cancels the deploy and destroys the lab.
+> The output stops for several minutes while the 4 Arista switches boot one after another
+> (`startup-delay` 30/60/90 s). That is normal. A message like
+> `[deploy.sh] tor-01 booted into rescue mode -> continuing the boot` is also normal: the script fixes it.
+
+To watch progress, open a **second** Ubuntu tab:
+
+```bash
+watch -n5 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep clab-mini-dc'
+```
+
+The deploy is finished when it prints a table of 30 nodes and `Deployed. Wait ~30 s ...`.
+
+### Step 9 — Check it works
+
+Wait ~30 s (OSPF / spanning tree converge), then:
+
+```bash
+./scripts/tests.sh
+```
+
+Expected last line: **`Result: 20 passed, 0 failed`**. If a test fails, wait one more minute and run it
+again; if it still fails, see [Troubleshooting](#9-troubleshooting).
+
+Register the devices in Zabbix (needed after **every** deploy):
+
+```bash
+python3 scripts/zabbix-add-hosts.py
+```
+
+Open <http://localhost:8080> in your Windows browser — login `Admin` / `zabbix`. Hosts turn green after 1–2 min.
+
+Optional — the failover demo (cuts ISP A and the VRRP master for a few seconds, then restores them):
+
+```bash
+./scripts/tests.sh failover          # expect ≈0.2 s loss for ISP, ≈2.8 s for VRRP
+```
+
+### Step 10 — Open the graphical view (VS Code + TopoViewer)
+
+1. Install **VS Code** on Windows and the extensions **WSL** (Microsoft) and **Containerlab** (srl-labs).
+2. In Ubuntu, from the lab folder: `code .` (VS Code opens connected to WSL).
+3. Click the **Containerlab** icon in the left sidebar → right-click `mini-dc` → **Graph (TopoViewer)**.
+4. The layout uses a white canvas: switch VS Code to a light theme (**Ctrl+K Ctrl+T → Light Modern**) so node names are readable.
+
+Right-click a node for SSH / console, right-click a link for a Wireshark capture.
+
+### Step 11 — Stop, and start again later
+
+```bash
+containerlab destroy -t mini-dc.clab.yml --cleanup      # stop and remove everything
+```
+
+Do this **before** shutting down Windows or running `wsl --shutdown`. The virtual cables between
+containers do not survive a WSL restart: if you forgot, Docker restarts the containers half-broken —
+just run the destroy command above, then `./deploy.sh` again.
+
+Typical session after the first install:
+
+```bash
+cd ~/projects/mini-dc-lab
+git pull
+./deploy.sh
+./scripts/tests.sh
+python3 scripts/zabbix-add-hosts.py
+# ... work ...
 containerlab destroy -t mini-dc.clab.yml --cleanup
 ```
 
-**GNS3-style GUI:** in VS Code, open the folder from WSL (`code .`), click the Containerlab
-icon in the sidebar → right-click the lab → **Graph (TopoViewer)**. Nodes are grouped by
-building/room. Right-click any node for SSH/console, any interface for a Wireshark capture.
+## 3. Everyday commands & consoles
+
+```bash
+./deploy.sh                                        # start (5–8 min)
+./scripts/tests.sh                                 # 20 functional tests
+./scripts/tests.sh failover                        # failover demo
+python3 scripts/zabbix-add-hosts.py                # register devices in Zabbix (after each deploy)
+containerlab inspect -t mini-dc.clab.yml           # list nodes and IPs
+containerlab destroy -t mini-dc.clab.yml --cleanup # stop
+```
 
 **Consoles**
 
@@ -73,6 +263,8 @@ building/room. Right-click any node for SSH/console, any interface for a Wiresha
 | FRR routers / FW | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing) or `... sh` (shell, `nft list ruleset`) |
 | Servers / PCs | `docker exec -it clab-mini-dc-web01 bash` |
 | Zabbix | <http://localhost:8080> — `Admin` / `zabbix` |
+
+The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.svg).
 
 ---
 
@@ -169,23 +361,13 @@ users → db01:3306, is now enforced by the db01 host firewall).
 
 ## 10. Working on this repo as a team
 
-**First-time setup (each member)**
+First install: follow [section 2](#2-first-run--step-by-step) from step 1.
 
-1. WSL2 Ubuntu 24.04 + Docker Engine + Containerlab; add yourself to the `docker` and `clab_admins` groups.
-2. Download **your own** cEOS-lab from arista.com (the image is licensed, it is not in the repo) and import it:
-   `docker import cEOS64-lab-4.33.x.tar.xz ceos:latest`
-3. Clone into the Linux filesystem (not `/mnt/c`) and build the images:
-   ```bash
-   git clone <repo-url> ~/projects/mini-dc-lab && cd ~/projects/mini-dc-lab && ./setup.sh
-   ```
-4. Check Ubuntu uses its own Docker engine — this must print your machine name, not `docker-desktop`:
-   `docker info --format '{{.Name}}'`
-5. `./deploy.sh`, then `./scripts/tests.sh` → expect **20 passed**.
-
-**Workflow**
-
-- One branch per task (`git switch -c feature/<topic>`), push it and open a pull request — no direct pushes to `main`.
-- Run `./scripts/tests.sh` before every pull request and paste the result in the description.
-- `mini-dc.clab.yml.annotations.json` (TopoViewer layout) is rewritten whenever someone moves things in the graph:
-  agree on one person for layout changes to avoid merge conflicts. Custom icons live in `.clab-icons/`.
-- Not versioned (see `.gitignore`): `clab-mini-dc/` (generated at deploy), logs, backups, the cEOS image.
+- **Before you start working:** `git pull` on `main`.
+- **One branch per task:** `git switch -c feature/<topic>` → commit → `git push -u origin feature/<topic>` →
+  open a pull request on GitHub. No direct pushes to `main`.
+- **Run `./scripts/tests.sh` before every pull request** and paste the `Result: 20 passed` line in the description.
+- **TopoViewer layout:** `mini-dc.clab.yml.annotations.json` is rewritten whenever someone moves things in the
+  graph — agree on one person for layout changes to avoid merge conflicts. Custom icons live in `.clab-icons/`.
+- **Not versioned** (see `.gitignore`): `clab-mini-dc/` (generated at every deploy, contains TLS keys),
+  logs, layout backups, the cEOS image. Never commit the cEOS `.tar.xz`.
