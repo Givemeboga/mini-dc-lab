@@ -6,7 +6,7 @@ Run from the lab folder after TrueNAS is installed and booted:
 
 Idempotent: it only creates what is missing.
   - SAN NIC (MAC 52:54:00:30:00:10) -> static 10.10.30.10/24, no gateway (VLAN 30 is not routed)
-  - ZFS pool "tank" = mirror of the two data disks, zvols tank/db and tank/backup (10 GiB each)
+  - ZFS pool "tank" = mirror of the two data disks, zvols tank/db (10 GiB) and tank/backup (4 GiB)
   - iSCSI: base name iqn.2026-09.lab.dc, portal 10.10.30.10:3260,
     targets storage01.db (only db01 10.10.30.30) and storage01.backup (only backup01 10.10.30.40), LUN 1
 Uses only the Python standard library (minimal WebSocket client below).
@@ -21,9 +21,9 @@ SAN_MAC, SAN_IP = "52:54:00:30:00:10", "10.10.30.10"
 MGMT_MAC = "52:54:00:10:01:07"                           # QEMU user-mode NIC, web UI / API path
 BASENAME = "iqn.2026-09.lab.dc"
 GIB = 1024 ** 3
-TARGETS = [  # (target name, zvol, allowed initiator network)
-    ("storage01.db", "tank/db", "10.10.30.30/32"),
-    ("storage01.backup", "tank/backup", "10.10.30.40/32"),
+TARGETS = [  # (target name, zvol, size GiB, allowed initiator network) - pool = 2 x 20 GiB mirror
+    ("storage01.db", "tank/db", 10, "10.10.30.30/32"),
+    ("storage01.backup", "tank/backup", 4, "10.10.30.40/32"),
 ]
 
 
@@ -168,10 +168,10 @@ def main():
             sys.exit(f"data disks not found (got {disks})")
         c.job("pool.create", {"name": "tank", "topology": {"data": [{"type": "MIRROR", "disks": sorted(disks)[:2]}]}})
         step(f"pool tank created (mirror {' + '.join(sorted(disks)[:2])})")
-    for _, zvol, _ in TARGETS:
+    for _, zvol, size, _ in TARGETS:
         if not c.call("pool.dataset.query", [["id", "=", zvol]]):
-            c.call("pool.dataset.create", {"name": zvol, "type": "VOLUME", "volsize": 10 * GIB, "volblocksize": "16K"})
-            step(f"zvol {zvol} created (10 GiB)")
+            c.call("pool.dataset.create", {"name": zvol, "type": "VOLUME", "volsize": size * GIB, "volblocksize": "16K"})
+            step(f"zvol {zvol} created ({size} GiB)")
 
     # ---- iSCSI
     c.call("iscsi.global.update", {"basename": BASENAME})
@@ -182,7 +182,7 @@ def main():
         step(f"portal {SAN_IP}:3260 created")
     initiator = next((i for i in c.call("iscsi.initiator.query") if i.get("comment") == "lab-any"), None) \
         or c.call("iscsi.initiator.create", {"initiators": [], "comment": "lab-any"})
-    for name, zvol, net in TARGETS:
+    for name, zvol, _, net in TARGETS:
         t = next(iter(c.call("iscsi.target.query", [["name", "=", name]])), None)
         if t is None:
             t = c.call("iscsi.target.create", {"name": name, "auth_networks": [net],
