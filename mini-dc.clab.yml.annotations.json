@@ -30,7 +30,7 @@
       "text": "LACP 2×10G · VLAN 99",
       "position": {
         "x": 660,
-        "y": 461
+        "y": 420
       },
       "fontSize": 24,
       "fontColor": "#c81e1e",
@@ -136,7 +136,7 @@
     },
     {
       "id": "t-v20b",
-      "text": "VLAN 20 · Servers",
+      "text": "VLAN 20",
       "position": {
         "x": 863,
         "y": 1192
@@ -163,9 +163,9 @@
       "text": "No cables by design: OOB only (eth0 of all 30 nodes). Zabbix polls everything from here.",
       "position": {
         "x": 1747,
-        "y": 264
+        "y": 236
       },
-      "fontSize": 22,
+      "fontSize": 18,
       "fontColor": "#475569",
       "fontWeight": "normal",
       "textAlign": "left",
@@ -289,27 +289,27 @@
       "id": "nd-edge-r1",
       "text": "FRR · ISP A primary",
       "position": {
-        "x": 460,
-        "y": 195
+        "x": 586,
+        "y": 31
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
-      "textAlign": "center",
-      "width": 240
+      "textAlign": "left",
+      "width": 200
     },
     {
       "id": "nd-edge-r2",
       "text": "FRR · ISP B backup",
       "position": {
-        "x": 924,
-        "y": 195
+        "x": 1050,
+        "y": 31
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
-      "textAlign": "center",
-      "width": 240
+      "textAlign": "left",
+      "width": 200
     },
     {
       "id": "nd-fw-01",
@@ -656,10 +656,10 @@
       "shapeType": "rectangle",
       "position": {
         "x": 51,
-        "y": 964
+        "y": 994
       },
       "width": 725,
-      "height": 268,
+      "height": 238,
       "fillColor": "#34b87a",
       "fillOpacity": 0.1,
       "borderColor": "#34b87a",
@@ -673,10 +673,10 @@
       "shapeType": "rectangle",
       "position": {
         "x": 848,
-        "y": 964
+        "y": 994
       },
       "width": 478,
-      "height": 268,
+      "height": 238,
       "fillColor": "#34b87a",
       "fillOpacity": 0.1,
       "borderColor": "#34b87a",
@@ -690,10 +690,10 @@
       "shapeType": "rectangle",
       "position": {
         "x": 1341,
-        "y": 964
+        "y": 994
       },
       "width": 232,
-      "height": 268,
+      "height": 238,
       "fillColor": "#9b7bea",
       "fillOpacity": 0.12,
       "borderColor": "#9b7bea",
