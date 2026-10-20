@@ -101,8 +101,8 @@
       "id": "t-iscsi",
       "text": "iSCSI · TCP 3260",
       "position": {
-        "x": 580,
-        "y": 1389
+        "x": 593,
+        "y": 1375
       },
       "fontSize": 24,
       "fontColor": "#b45309",
