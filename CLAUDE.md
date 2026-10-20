@@ -1,4 +1,4 @@
-# Mini Data Center — Containerlab lab
+# RAM+ Data Center — Containerlab lab
 
 School project (ESPRIT, cybersecurity & cloud engineering): a mini data center (network + buildings)
 emulated with **Containerlab** on **Windows 11 Home → WSL2 Ubuntu 24.04** (no GNS3 — its VM setup failed

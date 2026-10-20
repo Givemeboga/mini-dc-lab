@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1210" width="1680" height="1210" font-family="'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif">
-  <title>Mini Data Center — Network &amp; Building Architecture (Containerlab lab)</title>
+  <title>RAM+ Data Center — Network &amp; Building Architecture (Containerlab lab)</title>
   <style>
     .title { font-size: 28px; font-weight: 700; fill: #1e3a8a; }
     .sub   { font-size: 13px; fill: #64748b; }
@@ -89,7 +89,7 @@
   <rect width="1680" height="1210" fill="#ffffff"/>
 
   <!-- ============================================================ HEADER -->
-  <text x="30" y="50" class="title">Mini Data Center — Network &amp; Building Architecture</text>
+  <text x="30" y="50" class="title">RAM+ Data Center — Network &amp; Building Architecture</text>
   <text x="31" y="74" class="sub">Containerlab lab · 30 nodes · 34 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 20/20 tests</text>
 
   <!-- Legend (top right) -->

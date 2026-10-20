@@ -1,6 +1,6 @@
 <div align="center">
 
-# Mini Data Center — Containerlab Lab
+# RAM+ Data Center — Containerlab Lab
 
 **A complete data center (network + buildings) emulated with containers on a Windows laptop.**
 No GNS3 VM, no nested virtualization — just WSL2, Docker and Containerlab.
