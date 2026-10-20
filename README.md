@@ -67,15 +67,6 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward to the DMZ
             STORAGE-SW ── STORAGE01 (TrueNAS SCALE · iSCSI)
 ```
 
-### The running lab in VS Code (TopoViewer)
-
-The same data center as it runs: 30 live nodes grouped by building and room, green links = up.
-Open it with [step 11](#step-11--open-the-graphical-view).
-
-<p align="center">
-  <img src="docs/topoviewer.png" alt="Live lab in VS Code TopoViewer: buildings, rooms, VLAN zones, 30 nodes, TrueNAS storage" width="100%">
-</p>
-
 ---
 
 ## 2. Quick start
@@ -387,8 +378,7 @@ Optional — failover demo (cuts ISP A and the VRRP master for a few seconds, th
 4. Switch VS Code to a light theme (**Ctrl+K Ctrl+T → Light Modern**) — the layout uses a white canvas.
 
 Right-click a node for SSH / console, right-click a link for a Wireshark capture.
-You should see the layout shown in [the overview](#the-running-lab-in-vs-code-topoviewer); interface names
-appear when you click a link.
+You should see this layout ([screenshot](docs/topoviewer.png)); interface names appear when you click a link.
 
 ---
 
@@ -446,7 +436,7 @@ Two views of the same design:
 | | |
 |---|---|
 | [`docs/architecture.svg`](docs/architecture.svg) | Architecture diagram (shown at the top), for the report |
-| [`docs/topoviewer.png`](docs/topoviewer.png) | The running lab in VS Code TopoViewer ([overview](#the-running-lab-in-vs-code-topoviewer)) |
+| [`docs/topoviewer.png`](docs/topoviewer.png) | Screenshot of the running lab in VS Code TopoViewer |
 
 <details>
 <summary><b>Design → lab mapping</b></summary>
