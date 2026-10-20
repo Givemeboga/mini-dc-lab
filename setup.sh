@@ -14,8 +14,9 @@ fi
 echo "[1/3] Building dc-router (FRR + nftables)..."
 docker build -t dc-router:latest images/dc-router
 
-echo "[2/3] Building dc-host (servers & PCs)..."
+echo "[2/3] Building dc-host (servers & PCs) and dc-truenas (storage01 VM)..."
 docker build -t dc-host:latest images/dc-host
+docker build -t dc-truenas:latest images/dc-truenas
 
 echo "[3/3] Checking the Arista cEOS image..."
 if docker image inspect ceos:latest >/dev/null 2>&1; then

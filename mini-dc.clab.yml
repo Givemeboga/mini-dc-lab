@@ -148,8 +148,10 @@ topology:
     storage01:
       kind: linux
       group: "Bat. informatique - Zone stockage"
+      image: dc-truenas:latest       # TrueNAS SCALE VM (KVM) inside the container, see init-truenas.sh
       mgmt-ipv4: 10.10.10.107
-      exec: [bash /lab/scripts/init-host.sh]
+      ports: ["8443:443", "6080:6080"]   # TrueNAS web UI / VM console (noVNC)
+      exec: [bash /lab/scripts/init-truenas.sh]
 
     # ------------------------------ Batiment logistique (NOC, users, admin)
     noc-sw:

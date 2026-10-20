@@ -10,6 +10,9 @@ deploy.log
 *.bak
 *.bak[0-9]*
 
+# TrueNAS VM: ISO and virtual disks (several GB, per machine)
+truenas/
+
 # Arista cEOS image: licensed, every member downloads their own
 *.tar.xz
 *.tar
