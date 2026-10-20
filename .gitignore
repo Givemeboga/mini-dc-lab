@@ -20,3 +20,6 @@ truenas/
 # Local tool settings
 .claude/settings.local.json
 .vscode/
+
+# Python bytecode
+__pycache__/
