@@ -4,6 +4,18 @@
 # The watcher detects it and continues the boot (systemctl default) automatically.
 cd "$(dirname "$0")"
 P=clab-mini-dc
+
+# An old copy of the lab (e.g. Docker restarted it after a reboot) cannot be reused: its cables are gone.
+if [ -n "$(docker ps -aq --filter "name=^$P-")" ]; then
+  echo "[deploy.sh] An old copy of the lab exists ($(docker ps -q --filter "name=^$P-" | wc -l) of" \
+       "$(docker ps -aq --filter "name=^$P-" | wc -l) containers running) - it must be destroyed first."
+  read -r -p "[deploy.sh] Destroy it and deploy a fresh lab? [y/N] " ans
+  case "$ans" in
+    [yY]*) containerlab destroy -t mini-dc.clab.yml --cleanup || exit 1 ;;
+    *) echo "Nothing done. To remove it yourself: containerlab destroy -t mini-dc.clab.yml --cleanup"; exit 1 ;;
+  esac
+fi
+
 (
   declare -A fixed
   for _ in $(seq 1 120); do                       # watch for up to 20 minutes
@@ -20,6 +32,11 @@ P=clab-mini-dc
 ) &
 WATCHER=$!
 containerlab deploy -t mini-dc.clab.yml "$@" 2>&1 | tee deploy.log
+rc=${PIPESTATUS[0]}
 kill "$WATCHER" 2>/dev/null
 echo
+if [ "$rc" -ne 0 ]; then
+  echo "[deploy.sh] Deploy FAILED (containerlab exit code $rc) - see the ERROR above and deploy.log."
+  exit "$rc"
+fi
 echo "Deployed. Wait ~30 s for OSPF/STP to settle, then run: ./scripts/tests.sh"
