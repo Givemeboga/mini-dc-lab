@@ -383,14 +383,14 @@
   <text x="560" y="1044" text-anchor="middle" class="ip">no gateway</text>
   <use href="#storage" x="808" y="973" width="64" height="34"/>
   <text x="840" y="1024" text-anchor="middle" class="n">STORAGE01</text>
-  <text x="840" y="1036" text-anchor="middle" class="r">tgt iSCSI target (userspace)</text>
+  <text x="840" y="1036" text-anchor="middle" class="r">TrueNAS SCALE 25.10 · ZFS</text>
   <text x="840" y="1048" text-anchor="middle" class="ip">10.10.30.10</text>
   <g>
     <text x="930" y="968" class="pt" font-weight="700" fill="#0f172a">LUN</text>
     <text x="956" y="968" class="ps mono">storage01.db → DB01</text>
     <text x="930" y="984" class="pt" font-weight="700" fill="#0f172a">LUN</text>
     <text x="956" y="984" class="ps mono">storage01.backup → BACKUP01</text>
-    <text x="930" y="1002" class="ps">ACL per initiator IP</text>
+    <text x="930" y="1002" class="ps">ZFS mirror · ACL per initiator IP</text>
     <text x="930" y="1015" class="ps">Dedicated NICs · not routed</text>
   </g>
 
@@ -477,5 +477,5 @@
   <text x="1188" y="1156" class="ps">Rapid-PVST → MSTP · MGMT-SW → containerlab OOB network · Zabbix on OOB</text>
 
   <!-- footer -->
-  <text x="30" y="1194" class="ps">Containerlab 0.79 · Arista cEOS-lab 4.33 · FRRouting · nftables · Debian services (nginx, BIND9, MariaDB, tgt, rsyslog) · Zabbix 7.0 · Windows 11 + WSL2 Ubuntu 24.04</text>
+  <text x="30" y="1194" class="ps">Containerlab 0.79 · Arista cEOS-lab 4.33 · FRRouting · nftables · Debian services (nginx, BIND9, MariaDB, rsyslog) · TrueNAS SCALE 25.10 · Zabbix 7.0 · Windows 11 + WSL2 Ubuntu 24.04</text>
 </svg>

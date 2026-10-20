@@ -9,6 +9,7 @@ No GNS3 VM, no nested virtualization — just WSL2, Docker and Containerlab.
 ![Arista cEOS](https://img.shields.io/badge/Arista_cEOS-4.33.10M-1f5fbf)
 ![FRRouting](https://img.shields.io/badge/FRRouting-OSPF-7c3aed)
 ![nftables](https://img.shields.io/badge/firewall-nftables-e4572e)
+![TrueNAS](https://img.shields.io/badge/TrueNAS_SCALE-25.10-0095d5)
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.0-d40000)
 ![WSL2](https://img.shields.io/badge/WSL2-Ubuntu_24.04-e95420)
 ![Tests](https://img.shields.io/badge/tests-20%2F20_passing-22a06b)
@@ -48,7 +49,7 @@ No GNS3 VM, no nested virtualization — just WSL2, Docker and Containerlab.
 | **Security** | FW-01 = FRR (OSPF) + nftables, default-drop policy · DMZ (VLAN 60) with 2 web servers |
 | **Core / access** | 2 Arista cEOS cores (VRRP, LACP, MSTP root, OSPF) · 2 cEOS top-of-rack switches |
 | **Servers** | nginx intranet, Python API, BIND9 DNS, MariaDB, AD (IP/DNS), backup |
-| **Storage** | Isolated iSCSI SAN (tgt) with one LUN per server and per-initiator ACL |
+| **Storage** | **TrueNAS SCALE 25.10** (KVM virtual machine inside the lab): ZFS mirror, one zvol / iSCSI LUN per server, per-initiator ACL, isolated SAN |
 | **Operations** | NOC with rsyslog from every switch · Zabbix 7 (SNMP + ICMP) on the OOB network |
 | **Proof** | `scripts/tests.sh` — 20 automated checks, plus an ISP / VRRP failover demo |
 
@@ -63,7 +64,7 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward to the DMZ
    TOR-01 ══ TOR-02         Arista cEOS · dual-homed · LACP
    Rack A     Rack B        + fibers to the logistics building (NOC, users)
                  │
-            STORAGE-SW ── STORAGE01 (iSCSI target)
+            STORAGE-SW ── STORAGE01 (TrueNAS SCALE · iSCSI)
 ```
 
 ---
@@ -79,6 +80,9 @@ git pull
 ./scripts/tests.sh                    # expect: Result: 20 passed, 0 failed
 python3 scripts/zabbix-add-hosts.py   # Zabbix: http://localhost:8080 (Admin / zabbix)
 ```
+
+TrueNAS (storage01) needs 2–4 min after the deploy to boot — if the 3 iSCSI tests fail, wait and run the tests again.
+Its configuration is kept on its virtual disks between deploys.
 
 When you are done:
 
@@ -98,13 +102,13 @@ containerlab destroy -t mini-dc.clab.yml --cleanup
 
 | | |
 |---|---|
-| **OS** | Windows 11 (Home is fine) or Windows 10 22H2, **virtualization enabled in BIOS/UEFI** |
-| **RAM** | **32 GB recommended** — WSL gets 16 GB (4 × cEOS ≈ 5–6 GB, Zabbix ≈ 1 GB). 16 GB laptops: see step 1 |
-| **Disk** | ~10 GB free |
+| **OS** | Windows 11 (Home is fine), **virtualization enabled in BIOS/UEFI** (TrueNAS runs under KVM inside WSL) |
+| **RAM** | **32 GB recommended** — WSL gets 24 GB (4 × cEOS ≈ 5–6 GB, TrueNAS VM 8 GB, Zabbix ≈ 1 GB). 16 GB laptops: see step 1 |
+| **Disk** | ~20 GB free (images, TrueNAS ISO and virtual disks) |
 | **Accounts** | GitHub (invited to this repo) · free **arista.com** account for the cEOS image |
 | **Time** | ~1 h the first time (downloads and image builds), then 5–8 min per deploy |
 
-**Team versions:** WSL2 + Ubuntu 24.04 · Docker Engine 27.x (*not* Docker Desktop) · Containerlab 0.79.0 · Arista cEOS-lab 4.33.10M
+**Team versions:** WSL2 + Ubuntu 24.04 · Docker Engine 27.x (*not* Docker Desktop) · Containerlab 0.79.0 · Arista cEOS-lab 4.33.10M · TrueNAS SCALE 25.10.7
 
 > [!NOTE]
 > Commands marked **PowerShell** run on Windows. Everything else runs in the **Ubuntu** terminal
@@ -117,12 +121,13 @@ containerlab destroy -t mini-dc.clab.yml --cleanup
 | 3 | [Install Containerlab](#step-3--install-containerlab) | 3 min |
 | 4 | [Connect Git to GitHub](#step-4--connect-git-to-github) | 3 min |
 | 5 | [Clone the repo](#step-5--clone-the-repo) | 1 min |
-| 6 | [Get the Arista cEOS image](#step-6--get-the-arista-ceos-image) | 10 min |
+| 6 | [Get the cEOS image and the TrueNAS ISO](#step-6--get-the-ceos-image-and-the-truenas-iso) | 15 min |
 | 7 | [Build the lab images](#step-7--build-the-lab-images) | 5–10 min |
 | 8 | [Deploy the lab](#step-8--deploy-the-lab) | 5–8 min |
-| 9 | [Check it works](#step-9--check-it-works) | 2 min |
-| 10 | [Open the graphical view](#step-10--open-the-graphical-view) | 5 min |
-| 11 | [Stop the lab](#step-11--stop-the-lab) | 1 min |
+| 9 | [Install and configure TrueNAS](#step-9--install-and-configure-truenas-first-time-only) | 20 min |
+| 10 | [Check it works](#step-10--check-it-works) | 2 min |
+| 11 | [Open the graphical view](#step-11--open-the-graphical-view) | 5 min |
+| 12 | [Stop the lab](#step-12--stop-the-lab) | 1 min |
 
 ---
 
@@ -145,7 +150,7 @@ Give WSL enough memory — create `C:\Users\<you>\.wslconfig`:
 
 ```ini
 [wsl2]
-memory=16GB
+memory=24GB
 processors=6
 swap=4GB
 ```
@@ -153,13 +158,14 @@ swap=4GB
 Apply it with `wsl --shutdown` (PowerShell) and reopen Ubuntu.
 
 > [!TIP]
-> **16 GB laptop?** Use `memory=12GB` and, before deploying, comment out the `zbx-db`, `monitor01`
-> and `zbx-web` nodes in `mini-dc.clab.yml` (saves ~1 GB).
+> **16 GB laptop?** Use `memory=12GB`, comment out the `zbx-db`, `monitor01` and `zbx-web` nodes in
+> `mini-dc.clab.yml` (saves ~1 GB) and give TrueNAS 4 GB: add `env: {TRUENAS_RAM: "4096"}` to `storage01`.
 
-✅ **Check** — systemd must be running (Docker needs it). This must print `systemd`:
+✅ **Check** — systemd must be running (Docker needs it) and KVM must exist (TrueNAS needs it):
 
 ```bash
-ps -p 1 -o comm=
+ps -p 1 -o comm=      # systemd
+ls /dev/kvm           # /dev/kvm
 ```
 
 If it prints `init`: `printf '[boot]\nsystemd=true\n' | sudo tee /etc/wsl.conf`, then `wsl --shutdown` and reopen Ubuntu.
@@ -244,7 +250,7 @@ cd mini-dc-lab
 
 ---
 
-### Step 6 — Get the Arista cEOS image
+### Step 6 — Get the cEOS image and the TrueNAS ISO
 
 The image is licensed by Arista, so it is **not** in the repo — each member downloads their own.
 
@@ -260,6 +266,18 @@ rm ~/cEOS64-lab-4.33.10M.tar.xz      # optional, frees 800 MB
 
 ✅ **Check** — `docker images ceos` shows `ceos  latest  ~2.6GB`. The tag **must** be `ceos:latest`.
 
+Then download the TrueNAS SCALE ISO (2.3 GB) into `truenas/` and verify it:
+
+```bash
+mkdir -p truenas && cd truenas
+U=https://download.sys.truenas.net/TrueNAS-SCALE-Goldeye/25.10.7
+curl -fLO $U/TrueNAS-SCALE-25.10.7.iso -fLO $U/TrueNAS-SCALE-25.10.7.iso.sha256
+echo "$(cat TrueNAS-SCALE-25.10.7.iso.sha256)  TrueNAS-SCALE-25.10.7.iso" | sha256sum -c -   # ...: OK
+cd ..
+```
+
+`truenas/` is in `.gitignore`: the ISO and the VM disks never go to GitHub.
+
 ---
 
 ### Step 7 — Build the lab images
@@ -270,7 +288,7 @@ rm ~/cEOS64-lab-4.33.10M.tar.xz      # optional, frees 800 MB
 
 What it does:
 - raises the kernel *inotify* limits (asks your sudo password once — several cEOS won't boot without it);
-- builds `dc-router` (FRR + nftables) and `dc-host` (Debian services);
+- builds `dc-router` (FRR + nftables), `dc-host` (Debian services) and `dc-truenas` (QEMU for the TrueNAS VM);
 - checks `ceos:latest` and pre-pulls the Zabbix / PostgreSQL images.
 
 ✅ **Check** — it ends with `Ready. Deploy with: ./deploy.sh`.
@@ -295,10 +313,38 @@ watch -n5 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep clab-mini-d
 ```
 
 ✅ **Check** — the deploy prints a table of 30 nodes and `Deployed. Wait ~30 s ...`.
+If it says *"An old copy of the lab exists"* (after a reboot), answer `y`. If it says `Deploy FAILED`, read the ERROR above it.
 
 ---
 
-### Step 9 — Check it works
+### Step 9 — Install and configure TrueNAS (first time only)
+
+`storage01` runs **TrueNAS SCALE** as a virtual machine. On the first deploy its disk is empty, so it boots the installer.
+
+1. Open the VM console in your Windows browser: **<http://localhost:6080/vnc_lite.html?scale=true>** and click inside it.
+2. **`1 Install/Upgrade`** → tick only **`vda` (32 GiB)** with Space → Enter → **Yes**.
+   Do **not** tick `vdb` / `vdc` (20 GiB): they become the ZFS pool.
+3. **`1 Administrative user (truenas_admin)`** → choose a password (lab default: `truenas`) → keep the other defaults.
+4. "Installation succeeded" → **`3 Reboot System`**. After 2–4 min the console shows *Console setup* with options 1–10.
+5. Configure it (it asks for the password if it is not `truenas`):
+
+```bash
+python3 scripts/truenas-setup.py
+```
+
+It sets the SAN address `10.10.30.10/24`, creates the ZFS mirror pool `tank`, the zvols `tank/db` (10 GiB) and
+`tank/backup` (4 GiB), and the iSCSI targets `iqn.2026-09.lab.dc:storage01.db` (only db01) and `...:storage01.backup`
+(only backup01). Safe to run again.
+
+✅ **Check** — it ends with `Done.` Web UI: **<https://localhost:8443>** (`truenas_admin`, accept the self-signed certificate).
+
+> [!NOTE]
+> The installed TrueNAS and its configuration live in `truenas/*.qcow2` and survive destroy / deploy.
+> You only do this step once per machine.
+
+---
+
+### Step 10 — Check it works
 
 Wait ~30 s for OSPF and spanning tree to converge, then:
 
@@ -324,7 +370,7 @@ Optional — failover demo (cuts ISP A and the VRRP master for a few seconds, th
 
 ---
 
-### Step 10 — Open the graphical view
+### Step 11 — Open the graphical view
 
 1. Install **VS Code** on Windows with the extensions **WSL** (Microsoft) and **Containerlab** (srl-labs).
 2. In Ubuntu, from the lab folder: `code .`
@@ -335,7 +381,7 @@ Right-click a node for SSH / console, right-click a link for a Wireshark capture
 
 ---
 
-### Step 11 — Stop the lab
+### Step 12 — Stop the lab
 
 ```bash
 containerlab destroy -t mini-dc.clab.yml --cleanup
@@ -357,6 +403,7 @@ Forgot before a reboot? Docker restarts the containers half-broken — run the d
 | `./scripts/tests.sh` | 20 functional checks |
 | `./scripts/tests.sh failover` | ISP + VRRP failover demo |
 | `python3 scripts/zabbix-add-hosts.py` | Register all devices in Zabbix (after each deploy) |
+| `python3 scripts/truenas-setup.py` | (Re)apply the TrueNAS pool / zvols / iSCSI configuration |
 | `containerlab inspect -t mini-dc.clab.yml` | List nodes, state and management IPs |
 | `containerlab destroy -t mini-dc.clab.yml --cleanup` | Stop and remove the lab |
 
@@ -368,6 +415,8 @@ Forgot before a reboot? Docker restarts the containers half-broken — run the d
 | FRR routers / firewall | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing) · `... sh` then `nft list ruleset` |
 | Servers / PCs | `docker exec -it clab-mini-dc-web01 bash` |
 | Zabbix | <http://localhost:8080> — `Admin` / `zabbix` |
+| TrueNAS web UI | <https://localhost:8443> — `truenas_admin` |
+| TrueNAS VM console | <http://localhost:6080/vnc_lite.html?scale=true> |
 
 Useful checks:
 
@@ -395,7 +444,7 @@ The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at t
 | DMZ (VLAN 60) | DMZ-SW, WEB-DMZ01/02 | `dmz-sw` (Linux bridge), `web-dmz01/02` (nginx) | dc-host |
 | Salle serveurs 1 | TOR-01, WEB01, APP01, DNS01 | `tor-01` (cEOS), `web01` (nginx), `app01` (Python API), `dns01` (BIND9) | |
 | Salle serveurs 2 | TOR-02, DB01, AD01, BACKUP01 | `tor-02` (cEOS), `db01` (MariaDB), `ad01`, `backup01` | |
-| Zone stockage | STORAGE-SW, STORAGE01 | `storage-sw` (bridge), `storage01` (**tgt** iSCSI target) | |
+| Zone stockage | STORAGE-SW, STORAGE01 | `storage-sw` (bridge), `storage01` (**TrueNAS SCALE** VM under KVM) | dc-truenas |
 | Bât. logistique | NOC, users | `noc-sw`, `user-sw` (bridges with STP, dual-homed), `noc-ws`, `syslog01`, `pc-01`, `pc-02` | |
 | | Management | containerlab **OOB network 10.10.10.0/24** + `admin-pc` | |
 | | Monitoring | `monitor01` (Zabbix server), `zbx-web`, `zbx-db` | official images |
@@ -437,8 +486,11 @@ The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at t
   ACL `USERS-IN` so users only reach DNS / intranet / app (documented on the cores; cEOS-lab does not
   enforce SVI ACLs in software, so `db01` also runs a host firewall that only accepts MariaDB from
   the app servers and the DMZ — defense in depth).
-- **SAN** — `storage01` runs a userspace iSCSI target (tgt) with one target per server, restricted by
-  initiator IP. `db01` and `backup01` use dedicated storage NICs; VLAN 30 has no gateway.
+- **SAN** — `storage01` is a container running **TrueNAS SCALE 25.10** as a KVM virtual machine
+  (`scripts/init-truenas.sh`). Its SAN NIC is bridged onto the container's `eth1` cable to `storage-sw`, so TrueNAS
+  owns `10.10.30.10`; a second NIC (QEMU user network) carries the web UI / API. `truenas-setup.py` configures it
+  through the JSON-RPC WebSocket API: ZFS mirror pool `tank`, one zvol per server, one iSCSI target per server
+  restricted by initiator network. `db01` and `backup01` use dedicated storage NICs; VLAN 30 has no gateway.
   Tested with `iscsi-ls` / `iscsi-readcapacity16` (userspace initiator, no kernel module needed).
 - **OOB management** — cEOS management lives in a `MGMT` VRF; SSH, eAPI, SNMP and syslog run only there.
 - **NOC** — switches send syslog to `syslog01` (`/var/log/remote/<host>.log`); Zabbix polls the switches
@@ -477,11 +529,14 @@ The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at t
 | `scripts/init-router.sh` | Boot script for ISPs, edges, firewall (sysctl, routes, MTU, nftables) |
 | `scripts/init-bridge.sh` | Turns a container into a Linux-bridge switch (`stp` for dual-homed ones) |
 | `scripts/init-host.sh` | Boot script for every server / PC — role chosen by hostname |
+| `scripts/init-truenas.sh` | Boot script for storage01: bridges the SAN cable, starts the TrueNAS VM (QEMU/KVM) |
+| `scripts/truenas-setup.py` | Configures TrueNAS (SAN IP, ZFS pool, zvols, iSCSI targets + ACL) via its API |
 | `scripts/tests.sh` | 20 functional checks · `failover` demo |
 | `scripts/zabbix-add-hosts.py` | Registers all devices in Zabbix through its API |
 | `deploy.sh` | `containerlab deploy` + watcher that fixes cEOS rescue mode |
-| `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host`, pulls Zabbix images |
-| `images/` | Dockerfiles for `dc-router` and `dc-host` |
+| `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host` / `dc-truenas`, pulls Zabbix images |
+| `images/` | Dockerfiles for `dc-router`, `dc-host` and `dc-truenas` |
+| `truenas/` | TrueNAS ISO and VM disks (local only, not in git) |
 | `docs/architecture.svg` | Architecture diagram |
 | `CLAUDE.md` | Notes for the Claude Code assistant: environment, commands, lessons learned |
 
@@ -504,7 +559,7 @@ The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at t
 | Deploy silent for minutes | Normal while cEOS boots; `deploy.sh` also fixes a switch stuck in *rescue mode* |
 | A switch never gets `Uptime` | `docker logs --tail 10 clab-mini-dc-tor-01` → if it says *rescue mode*: `docker exec clab-mini-dc-tor-01 systemctl default --no-block` |
 | cEOS fails to boot with several switches | inotify limits too low — `setup.sh` raises them (`fs.inotify.max_user_instances=8192`) |
-| Lab half-dead after a reboot / `wsl --shutdown` | Links don't survive a WSL restart: `containerlab destroy -t mini-dc.clab.yml --cleanup && ./deploy.sh` |
+| Lab half-dead after a reboot / `wsl --shutdown` | Links don't survive a WSL restart: run `./deploy.sh` and answer `y` to destroy the old copy |
 
 **Network / services**
 
@@ -514,6 +569,16 @@ The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at t
 | Hosts can't reach the Internet | Check `docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"` has a default route |
 | noc-sw / user-sw no traffic for ~30 s | Spanning tree converging with the Linux bridges — wait |
 | Zabbix page not loading | Wait 1–2 min after deploy (database initialisation) |
+
+**TrueNAS / storage**
+
+| Symptom | Fix |
+|---|---|
+| The 3 iSCSI tests fail right after a deploy | TrueNAS is still booting: check the console, wait 2–4 min, run the tests again |
+| VM console page stays black / spinning | Use the lite page: <http://localhost:6080/vnc_lite.html?scale=true> |
+| `truenas-setup.py`: "Login refused" | Wrong password; forgotten? console option **4) Change local administrator password** |
+| storage01 boots the installer again | `truenas/boot.qcow2` was deleted or is empty: reinstall (step 9) |
+| TrueNAS slow / out of memory | `free -g` in WSL must show ~23 GB (`memory=24GB`); lower `TRUENAS_RAM` on 16 GB laptops |
 
 ---
 
@@ -540,6 +605,6 @@ logs, layout backups and the cEOS image. Never commit the cEOS `.tar.xz`.
 
 Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM, cEOS 4.33.10M): VRRP, LACP, MSTP,
 OSPF (cores + firewall), ISP failover, NAT / port-forwards, firewall policy, DNS, MariaDB from the DMZ,
-iSCSI with per-server ACL, storage isolation, syslog — **20/20 tests passing**.
+iSCSI on TrueNAS SCALE 25.10 with per-server ACL, storage isolation, syslog — **20/20 tests passing**.
 
 Measured failover: ISP ≈ 0.2 s · VRRP gateway ≈ 2.8 s.

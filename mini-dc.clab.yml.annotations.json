@@ -111,7 +111,7 @@
     },
     {
       "id": "t-lun",
-      "text": "LUN db → DB01\nLUN backup → BACKUP01\nACL per initiator IP\nnot routed",
+      "text": "TrueNAS SCALE 25.10\nZFS mirror · zvols\nLUN db → DB01\nLUN backup → BACKUP01",
       "position": {
         "x": 1262,
         "y": 1334
@@ -508,7 +508,7 @@
     },
     {
       "id": "nd-storage01",
-      "text": "10.10.30.10 · iSCSI",
+      "text": "TrueNAS · 10.10.30.10",
       "position": {
         "x": 982,
         "y": 1514
@@ -903,7 +903,7 @@
     },
     {
       "id": "g-sto",
-      "name": "Zone stockage · SAN iSCSI · VLAN 30",
+      "name": "Zone stockage · SAN iSCSI · VLAN 30 · TrueNAS",
       "level": "2",
       "position": {
         "x": 29,
