@@ -2,7 +2,7 @@
 """Configure TrueNAS (storage01) for the lab through its JSON-RPC WebSocket API.
 
 Run from the lab folder after TrueNAS is installed and booted:
-    python3 scripts/truenas-setup.py            # password from $TRUENAS_PASSWORD, default "truenas"
+    python3 scripts/truenas-setup.py            # tries $TRUENAS_PASSWORD (default "truenas"), else asks
 
 Idempotent: it only creates what is missing.
   - SAN NIC (MAC 52:54:00:30:00:10) -> static 10.10.30.10/24, no gateway (VLAN 30 is not routed)
@@ -95,15 +95,28 @@ class Rpc:
         raise TimeoutError(method)
 
 
+def login(c, password):
+    r = c.call("auth.login_ex", {"mechanism": "PASSWORD_PLAIN", "username": USER, "password": password})
+    return r.get("response_type") == "SUCCESS"
+
+
 def connect():
+    global PASSWORD
     for _ in range(60):
         try:
             c = Rpc(HOST)
-            if c.call("auth.login", USER, PASSWORD):
-                return c
-            sys.exit(f"Login refused for {USER} - set TRUENAS_PASSWORD")
         except (OSError, RuntimeError, ConnectionError):
             time.sleep(5)
+            continue
+        if login(c, PASSWORD):
+            return c
+        if sys.stdin.isatty():                      # wrong/unknown password: ask, hidden input
+            import getpass
+            PASSWORD = getpass.getpass(f"TrueNAS password for {USER}: ")
+            if login(c, PASSWORD):
+                return c
+        sys.exit(f"Login refused for {USER} - run again with the password chosen at install "
+                 f"(prompt, or TRUENAS_PASSWORD=... in the environment)")
     sys.exit(f"TrueNAS API not reachable on https://{HOST} - is the VM installed and booted?")
 
 
