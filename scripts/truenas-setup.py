@@ -18,6 +18,7 @@ USER = os.environ.get("TRUENAS_USER", "truenas_admin")
 PASSWORD = os.environ.get("TRUENAS_PASSWORD", "truenas")
 
 SAN_MAC, SAN_IP = "52:54:00:30:00:10", "10.10.30.10"
+MGMT_MAC = "52:54:00:10:01:07"                           # QEMU user-mode NIC, web UI / API path
 BASENAME = "iqn.2026-09.lab.dc"
 GIB = 1024 ** 3
 TARGETS = [  # (target name, zvol, allowed initiator network)
@@ -100,9 +101,9 @@ def login(c, password):
     return r.get("response_type") == "SUCCESS"
 
 
-def connect():
+def connect(tries=60):
     global PASSWORD
-    for _ in range(60):
+    for _ in range(tries):
         try:
             c = Rpc(HOST)
         except (OSError, RuntimeError, ConnectionError):
@@ -128,23 +129,35 @@ def main():
     c = connect()
     step(f"connected, TrueNAS {c.call('system.version')}")
 
-    # ---- SAN interface
-    nic = next((i for i in c.call("interface.query")
-                if i.get("state", {}).get("link_address", "").lower() == SAN_MAC), None)
-    if nic is None:
-        sys.exit("SAN NIC not found (MAC %s)" % SAN_MAC)
-    if any(a.get("address") == SAN_IP for a in nic.get("aliases", [])):
-        step(f"{nic['name']} already {SAN_IP}/24")
+    # ---- interfaces: SAN static, management (QEMU user net) explicitly DHCP.
+    # Once one interface is configured, TrueNAS stops DHCP on unconfigured ones - so both are set together.
+    ifaces = c.call("interface.query")
+    by_mac = {i.get("state", {}).get("link_address", "").lower(): i for i in ifaces}
+    san, mgmt = by_mac.get(SAN_MAC), by_mac.get(MGMT_MAC)
+    if san is None or mgmt is None:
+        sys.exit(f"NICs not found (SAN {SAN_MAC}, mgmt {MGMT_MAC}): {list(by_mac)}")
+    if any(a.get("address") == SAN_IP for a in san.get("aliases", [])) and mgmt.get("ipv4_dhcp"):
+        step(f"{san['name']} already {SAN_IP}/24, {mgmt['name']} DHCP")
     else:
-        c.call("interface.update", nic["name"],
+        c.call("interface.update", mgmt["name"], {"ipv4_dhcp": True, "ipv6_auto": False, "aliases": []})
+        c.call("interface.update", san["name"],
                {"ipv4_dhcp": False, "ipv6_auto": False, "aliases": [{"type": "INET", "address": SAN_IP, "netmask": 24}]})
-        c.call("interface.commit", {"rollback": True, "checkin_timeout": 90})
-        time.sleep(5)
+        c.s.settimeout(10)                          # the commit restarts the NIC we are connected through
         try:
-            c.call("interface.checkin")
-        except (OSError, ConnectionError):          # interfaces restarted under us: reconnect and confirm
-            c = connect(); c.call("interface.checkin")
-        step(f"{nic['name']} set to {SAN_IP}/24 (SAN, no gateway)")
+            c.call("interface.commit", {"rollback": True, "checkin_timeout": 120})
+        except OSError:
+            pass
+        for _ in range(20):                         # reconnect within the 120 s window and confirm
+            time.sleep(4)
+            try:
+                c = connect(tries=1)
+                c.call("interface.checkin")
+                break
+            except (OSError, RuntimeError, SystemExit):
+                continue
+        else:
+            sys.exit("could not confirm the network change - TrueNAS rolled it back; run the script again")
+        step(f"{san['name']} set to {SAN_IP}/24 (SAN, no gateway), {mgmt['name']} DHCP (management)")
 
     # ---- pool + zvols
     if c.call("pool.query", [["name", "=", "tank"]]):
