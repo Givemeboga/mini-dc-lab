@@ -396,6 +396,11 @@ Forgot before a reboot? Docker restarts the containers half-broken — run the d
 
 ## 4. Daily use
 
+> [!TIP]
+> **Testing guide (PDF):** [`docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf`](docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf)
+> lists one command per feature (edge, firewall, core, ToR, DNS, DMZ, security, TrueNAS SAN, NOC, failover) with
+> what each one proves, plus a pass/fail checklist — use it for demos and after every change.
+
 ### Commands
 
 | Command | What it does |
@@ -545,6 +550,7 @@ Two views of the same design:
 | `truenas/` | TrueNAS ISO and VM disks (local only, not in git) |
 | `docs/architecture.svg` | Architecture diagram |
 | `docs/topoviewer.png` | Screenshot of the live lab in TopoViewer |
+| `docs/testing-guide/` | Testing guide: PDF + its HTML source (edit the HTML, then re-print to PDF) |
 | `CLAUDE.md` | Notes for the Claude Code assistant: environment, commands, lessons learned |
 
 ---
@@ -609,6 +615,8 @@ logs, layout backups and the cEOS image. Never commit the cEOS `.tar.xz`.
 ---
 
 ## 9. Status
+
+Full verification procedure: [testing guide (PDF)](docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf).
 
 Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM, cEOS 4.33.10M): VRRP, LACP, MSTP,
 OSPF (cores + firewall), ISP failover, NAT / port-forwards, firewall policy, DNS, MariaDB from the DMZ,

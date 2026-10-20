@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RAM+ Data Center — Testing Guide</title>
+<!-- Source of RAM+_Data_Center_Testing_Guide.pdf. Regenerate the PDF with Edge/Chrome:
+     msedge --headless=new --no-pdf-header-footer --print-to-pdf=RAM+_Data_Center_Testing_Guide.pdf testing-guide.html -->
+<style>
+  @page { size: A4; margin: 14mm 13mm 16mm 13mm; }
+  :root { --navy:#16304f; --navy2:#1e3a5f; --ink:#1f2937; --muted:#5b6574; --line:#dfe5ee; --code:#1f4e8c;
+          --ok:#15803d; --bad:#b91c1c; --amber:#9a6200; --bg-alt:#f6f8fb; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif; color: var(--ink); font-size: 10.2pt;
+         line-height: 1.42; margin: 0; }
+  .cover { background: var(--navy); color: #fff; padding: 22px 26px 26px; border-radius: 2px; margin-bottom: 18px; }
+  .cover .kicker { font-size: 9pt; letter-spacing: .12em; font-weight: 700; color: #9fc0e6; }
+  .cover h1 { font-size: 25pt; margin: 6px 0 6px; line-height: 1.1; }
+  .cover p { margin: 0; color: #d6e3f3; font-size: 11pt; }
+  .cover .meta { margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 9pt; color: #bcd2ec; }
+  .cover .meta b { color: #fff; }
+  h2 { font-size: 13.5pt; color: var(--navy); margin: 18px 0 7px; padding-bottom: 4px; border-bottom: 2px solid var(--line);
+       break-after: avoid; }
+  h3 { font-size: 11pt; color: var(--navy2); margin: 12px 0 5px; break-after: avoid; }
+  p { margin: 5px 0 7px; }
+  code, pre, td.cmd { font-family: Consolas, "JetBrains Mono", Menlo, monospace; }
+  code { font-size: 9pt; background: #eef2f7; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #0f1b2d; color: #e6edf6; padding: 10px 13px; border-radius: 6px; font-size: 8.8pt; line-height: 1.5;
+        margin: 6px 0 10px; white-space: pre-wrap; break-inside: avoid; }
+  pre .c { color: #8aa4c3; }
+  table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 9pt; }
+  thead { display: table-header-group; }
+  th { background: var(--navy); color: #fff; text-align: left; padding: 5px 8px; font-weight: 600; }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr { break-inside: avoid; }
+  tbody tr:nth-child(even) td { background: var(--bg-alt); }
+  td.cmd { color: var(--code); font-size: 8.4pt; width: 58%; word-break: break-word; }
+  .blocked { color: var(--bad); font-weight: 700; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .note { border-left: 4px solid #3b82f6; background: #eef5ff; padding: 7px 11px; margin: 8px 0 10px; border-radius: 0 4px 4px 0;
+          break-inside: avoid; }
+  .warn { border-left-color: var(--amber); background: #fff7e6; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 12px; }
+  .chip { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 8.6pt; background: #fff; }
+  .chip b { display: block; color: var(--navy); font-size: 9.2pt; }
+  .page-break { break-before: page; }
+  .footer-note { margin-top: 16px; font-size: 8.5pt; color: var(--muted); border-top: 1px solid var(--line); padding-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">RAM+ DATA CENTER · CONTAINERLAB LAB</div>
+  <h1>Testing guide</h1>
+  <p>Verify every layer of the architecture — Internet, firewall, core, racks, DMZ, TrueNAS SAN and NOC</p>
+  <div class="meta">
+    <span><b>30</b> nodes · <b>34</b> links</span>
+    <span>Automated checks: <b>20 / 20 passing</b></span>
+    <span>Storage: <b>TrueNAS SCALE 25.10</b></span>
+    <span>All commands verified on the live lab · <b>20 Oct 2026</b></span>
+  </div>
+</div>
+
+<h2>How to use this guide</h2>
+<p>All commands run in <b>Ubuntu (WSL)</b>, from the lab folder, while the lab is deployed. Define the container prefix once per terminal:</p>
+<pre>cd ~/projects/mini-dc-lab
+P=clab-mini-dc</pre>
+<p>Each table lists the command and what it proves. Commands marked <span class="blocked">BLOCKED / DENIED</span> are
+<i>expected</i> to fail — they demonstrate a security control.</p>
+<div class="note warn"><b>Right after a deploy</b>, wait about 30 s for OSPF / spanning tree, and <b>2–4 min</b> for TrueNAS
+(storage01) to boot before testing the SAN (section 9). Check the TrueNAS console at
+<code>http://localhost:6080/vnc_lite.html?scale=true</code> if unsure.</div>
+
+<h3>What gets tested</h3>
+<div class="grid">
+  <div class="chip"><b>1 · Edge</b>Dual ISP, NAT, OSPF</div>
+  <div class="chip"><b>2 · Firewall</b>nftables default-drop</div>
+  <div class="chip"><b>3 · Core</b>VRRP, LACP, MSTP, OSPF</div>
+  <div class="chip"><b>4 · ToR</b>Access, STP, LACP</div>
+  <div class="chip"><b>5 · Servers</b>Gateway, Internet, intranet</div>
+  <div class="chip"><b>6 · DNS</b>Internal + forwarding</div>
+  <div class="chip"><b>7 · DMZ</b>Public web, DB flow</div>
+  <div class="chip"><b>8 · Security</b>Pivot, DB, SAN blocked</div>
+  <div class="chip"><b>9 · SAN</b>TrueNAS iSCSI + ACL</div>
+  <div class="chip"><b>10 · NOC</b>Syslog, SNMP, Zabbix</div>
+  <div class="chip"><b>11 · Failover</b>ISP + VRRP</div>
+  <div class="chip"><b>12 · Checklist</b>Pass / fail summary</div>
+</div>
+
+<h2>1. Internet &amp; edge routers</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-edge-r1 ping -c3 8.8.8.8</td><td>edge-r1 reaches the Internet through ISP A</td></tr>
+<tr><td class="cmd">docker exec $P-edge-r2 ping -c3 8.8.8.8</td><td>edge-r2 reaches the Internet through ISP B</td></tr>
+<tr><td class="cmd">docker exec $P-edge-r1 vtysh -c "show ip route"</td><td>static default <code>S&gt;* 0.0.0.0/0 via 10.0.0.2</code> + routes learned by OSPF (<code>O&gt;*</code>)</td></tr>
+<tr><td class="cmd">docker exec $P-edge-r1 vtysh -c "show ip ospf neighbor"</td><td>adjacency with fw-01 (10.255.0.40) is <b>Full</b></td></tr>
+<tr><td class="cmd">docker exec $P-edge-r1 nft list table ip nat</td><td>NAT (<code>masquerade</code>) and port-forward TCP 80 → DMZ (<code>dnat to 10.10.60.10</code>)</td></tr>
+</tbody></table>
+
+<h2>2. Firewall (fw-01)</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-fw-01 vtysh -c "show ip ospf neighbor"</td><td>4 neighbors Full: edge-r1, edge-r2, core-01, core-02</td></tr>
+<tr><td class="cmd">docker exec $P-fw-01 vtysh -c "show ip route 0.0.0.0/0"</td><td>default route via edge-r1 <code>10.0.1.1</code> (primary ISP)</td></tr>
+<tr><td class="cmd">docker exec $P-fw-01 nft list ruleset</td><td>the full security policy with hit counters</td></tr>
+<tr><td class="cmd">docker exec $P-web-dmz01 curl -s -m3 http://10.10.20.10</td><td>DMZ → internal web is <span class="blocked">BLOCKED</span> (no output)</td></tr>
+<tr><td class="cmd">docker exec $P-fw-01 nft list chain inet filter forward | tail -3</td><td>the <code>FW-01 DROP</code> counter increased</td></tr>
+</tbody></table>
+
+<h2>3. Core switches (Arista cEOS)</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show vlan"</td><td>VLANs 20, 40, 50, 70, 99</td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show vrrp brief"</td><td>core-01 is <b>Master</b> of the 4 .1 gateways</td></tr>
+<tr><td class="cmd">docker exec $P-core-02 Cli -p 15 -c "show vrrp brief"</td><td>core-02 is <b>Backup</b></td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show port-channel dense"</td><td>LACP <code>Po1(U)</code> bundled (Et1 + Et2)</td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show spanning-tree root"</td><td>core-01 is the MST0 root (priority 4096, root port <i>None</i>)</td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show ip ospf neighbor"</td><td>fw-01 and core-02 adjacencies <b>FULL</b></td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show ip route"</td><td>all VLANs + default <code>O E1 0.0.0.0/0</code> learned from the firewall</td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show interfaces status"</td><td>every port connected</td></tr>
+</tbody></table>
+<p>Interactive login, like on real hardware: <code>ssh admin@clab-mini-dc-core-01</code> (password <code>admin</code>).</p>
+
+<h2>4. Top-of-Rack switches</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-tor-01 Cli -p 15 -c "show interfaces status"</td><td>server ports and uplinks</td></tr>
+<tr><td class="cmd">docker exec $P-tor-01 Cli -p 15 -c "show mac address-table"</td><td>MAC addresses learned from web01 / app01 / dns01</td></tr>
+<tr><td class="cmd">docker exec $P-tor-01 Cli -p 15 -c "show spanning-tree"</td><td>Et1 (to core-01) is <b>root / forwarding</b>, Et2 (to core-02) is <b>alternate</b></td></tr>
+<tr><td class="cmd">docker exec $P-tor-02 Cli -p 15 -c "show port-channel dense"</td><td>LACP bundle toward tor-01 (Et3 + Et4)</td></tr>
+</tbody></table>
+
+<h2>5. Servers &amp; connectivity</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-web01 ping -c3 10.10.20.1</td><td>the server reaches its gateway (VRRP virtual IP)</td></tr>
+<tr><td class="cmd">docker exec $P-web01 ping -c3 10.10.20.30</td><td>db01 in the other rack, through the ToRs</td></tr>
+<tr><td class="cmd">docker exec $P-web01 traceroute -n 8.8.8.8</td><td>full path: core → firewall → edge → ISP</td></tr>
+<tr><td class="cmd">docker exec $P-web01 curl -s https://example.com | head -5</td><td>a server reaches the Internet</td></tr>
+<tr><td class="cmd">docker exec $P-pc-01 curl -s http://10.10.20.10</td><td>a user opens the intranet (<code>&lt;title&gt;web01</code>)</td></tr>
+</tbody></table>
+
+<h2>6. DNS (dns01)</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-web01 dig +short db01.dc.lab</td><td>internal name → <code>10.10.20.30</code></td></tr>
+<tr><td class="cmd">docker exec $P-web01 dig +short intranet.dc.lab</td><td>CNAME <code>web01.dc.lab.</code> → <code>10.10.20.10</code></td></tr>
+<tr><td class="cmd">docker exec $P-web01 dig +short google.com</td><td>dns01 forwards Internet names</td></tr>
+</tbody></table>
+
+<h2>7. DMZ – public website</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-isp-a curl -s http://10.0.0.1</td><td>"from the Internet" via ISP A → web-dmz01</td></tr>
+<tr><td class="cmd">docker exec $P-isp-b curl -s http://10.0.0.5</td><td>via ISP B → web-dmz02</td></tr>
+<tr><td class="cmd">docker exec $P-web-dmz01 mariadb -h 10.10.20.30 -u web -pWebPass2026 shop -e "select * from products"</td><td>the one database flow the DMZ is allowed (product table)</td></tr>
+</tbody></table>
+
+<h2>8. Security controls (must be blocked)</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-web-dmz01 curl -s -m3 http://10.10.20.10 || echo BLOCKED</td><td>a compromised DMZ server cannot pivot inside — <span class="blocked">BLOCKED</span></td></tr>
+<tr><td class="cmd">docker exec $P-pc-01 nc -z -w2 10.10.20.30 3306 || echo BLOCKED</td><td>users cannot reach the database — <span class="blocked">BLOCKED</span></td></tr>
+<tr><td class="cmd">docker exec $P-web01 ping -c2 -W1 10.10.30.10 || echo BLOCKED</td><td>the SAN (VLAN 30) is not routed — <span class="blocked">BLOCKED</span></td></tr>
+<tr><td class="cmd">docker exec $P-db01 nft list ruleset</td><td>db01 host firewall (defense in depth)</td></tr>
+</tbody></table>
+
+<h2>9. SAN – TrueNAS SCALE iSCSI storage</h2>
+<p><b>storage01</b> runs <b>TrueNAS SCALE 25.10</b> as a KVM virtual machine. It serves a ZFS mirror pool <code>tank</code>
+with one zvol per server, published as iSCSI targets restricted by initiator address.</p>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-storage01 pgrep -a qemu-system</td><td>the TrueNAS VM is running under KVM (<code>accel=kvm</code>)</td></tr>
+<tr><td class="cmd">docker exec $P-db01 ping -c2 10.10.30.10</td><td>db01 reaches TrueNAS on its dedicated storage NIC</td></tr>
+<tr><td class="cmd">docker exec $P-db01 iscsi-ls -s iscsi://10.10.30.10</td><td>db01 discovers <b>only</b> its own target <code>storage01.db</code>, LUN 1</td></tr>
+<tr><td class="cmd">docker exec $P-db01 iscsi-readcapacity16 iscsi://10.10.30.10/iqn.2026-09.lab.dc:storage01.db/1</td><td>reads its <b>10 GiB</b> LUN (last LBA 20971519 × 512 B)</td></tr>
+<tr><td class="cmd">docker exec $P-backup01 iscsi-readcapacity16 iscsi://10.10.30.10/iqn.2026-09.lab.dc:storage01.backup/1</td><td>backup01 reads its <b>4 GiB</b> LUN (last LBA 8388607)</td></tr>
+<tr><td class="cmd">docker exec $P-db01 iscsi-readcapacity16 iscsi://10.10.30.10/iqn.2026-09.lab.dc:storage01.backup/1 || echo DENIED</td><td>another server's LUN is <span class="blocked">DENIED</span> ("Target not found")</td></tr>
+</tbody></table>
+<h3>In the TrueNAS web interface</h3>
+<p>Open <code>https://localhost:8443</code> (user <code>truenas_admin</code>, accept the self-signed certificate):</p>
+<table><thead><tr><th>Where</th><th>What it shows</th></tr></thead><tbody>
+<tr><td><b>Storage</b> → pool <code>tank</code></td><td>ZFS <b>mirror</b> of the two data disks, status <span class="ok">ONLINE</span></td></tr>
+<tr><td><b>Datasets</b> → <code>tank/db</code>, <code>tank/backup</code></td><td>the two zvols (10 GiB and 4 GiB) backing the LUNs</td></tr>
+<tr><td><b>Shares</b> → <b>Block (iSCSI)</b> → Targets</td><td><code>storage01.db</code> allowed from 10.10.30.30/32, <code>storage01.backup</code> from 10.10.30.40/32</td></tr>
+<tr><td><b>Shares</b> → iSCSI → Portals</td><td>portal on <code>10.10.30.10:3260</code> (SAN only)</td></tr>
+<tr><td><b>Network</b></td><td><code>enp0s5</code> = 10.10.30.10/24 (SAN, no gateway), <code>enp0s6</code> = DHCP (management)</td></tr>
+</tbody></table>
+<p>From the VM console (option <b>8) Open Linux Shell</b>): <code>zpool status tank</code> and <code>zfs list -t volume</code>.
+To re-apply the configuration at any time: <code>python3 scripts/truenas-setup.py</code> (idempotent).</p>
+
+<h2>10. NOC &amp; monitoring</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">docker exec $P-syslog01 ls /var/log/remote/</td><td>one log file per network device</td></tr>
+<tr><td class="cmd">docker exec $P-syslog01 tail -5 /var/log/remote/core-01.log</td><td>live logs sent by core-01</td></tr>
+<tr><td class="cmd">docker exec $P-noc-ws ping -c3 10.10.99.1</td><td>the NOC reaches the firewall over the inter-building fiber</td></tr>
+<tr><td class="cmd">docker exec $P-admin-pc snmpget -v2c -c dclab 10.10.10.11 1.3.6.1.2.1.1.5.0</td><td>SNMP over the OOB network: <code>STRING: "core-01"</code> (what Zabbix polls)</td></tr>
+</tbody></table>
+<p>Zabbix web interface: <b>http://localhost:8080</b> (Admin / zabbix) → Monitoring → Hosts → group <i>Mini-DC</i>.
+Run <code>python3 scripts/zabbix-add-hosts.py</code> after each deploy to register the hosts.</p>
+
+<h2>11. Failover demonstrations</h2>
+<table><thead><tr><th>Command</th><th>What it shows</th></tr></thead><tbody>
+<tr><td class="cmd">./scripts/tests.sh</td><td>all 20 automated checks (expected: <span class="ok">20 passed, 0 failed</span>)</td></tr>
+<tr><td class="cmd">./scripts/tests.sh failover</td><td>ISP + VRRP failover with measured packet loss (cuts links for a few seconds, then restores them)</td></tr>
+</tbody></table>
+<div style="break-inside: avoid">
+<p><b>Live version for a presentation</b> — use two terminals:</p>
+<pre><span class="c"># Terminal 1: continuous ping to the Internet</span>
+docker exec clab-mini-dc-web01 ping 8.8.8.8
+
+<span class="c"># Terminal 2: cut ISP A, watch the pings continue through ISP B, then restore</span>
+docker exec clab-mini-dc-edge-r1 ip link set eth1 down
+docker exec clab-mini-dc-edge-r1 ip link set eth1 up</pre>
+</div>
+<p>Measured results: ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway failover (VRRP) ≈ <b>2.8 s</b>.</p>
+
+<h2>12. Validation checklist</h2>
+<p>Results of this guide on the reference lab (20 Oct 2026). Tick each line during a demo or after a change.</p>
+<table><thead><tr><th>Area</th><th>Expected</th><th>Result</th></tr></thead><tbody>
+<tr><td>Edge &amp; ISPs</td><td>both edges reach 8.8.8.8 · OSPF Full · NAT + port-forward present</td><td class="ok">PASS</td></tr>
+<tr><td>Firewall</td><td>4 OSPF neighbors · default via edge-r1 · DMZ → inside dropped and counted</td><td class="ok">PASS</td></tr>
+<tr><td>Core</td><td>VRRP master/backup · Po1 up · core-01 MST root · OSPF FULL · default route</td><td class="ok">PASS</td></tr>
+<tr><td>Top-of-Rack</td><td>ports connected · MACs learned · one uplink alternate · Po1 up</td><td class="ok">PASS</td></tr>
+<tr><td>Servers &amp; DNS</td><td>gateway, cross-rack, Internet, intranet · internal + forwarded names</td><td class="ok">PASS</td></tr>
+<tr><td>DMZ</td><td>public sites via both ISPs · DMZ → MariaDB allowed</td><td class="ok">PASS</td></tr>
+<tr><td>Security</td><td>pivot, users → DB and routed SAN are all blocked</td><td class="ok">PASS</td></tr>
+<tr><td>SAN (TrueNAS)</td><td>own LUN visible and readable · other LUN denied · web UI reachable</td><td class="ok">PASS</td></tr>
+<tr><td>NOC</td><td>syslog files per device · NOC → firewall · SNMP answers</td><td class="ok">PASS</td></tr>
+<tr><td>Automated</td><td><code>./scripts/tests.sh</code> → 20 passed, 0 failed</td><td class="ok">PASS</td></tr>
+</tbody></table>
+
+<h2>Lab start / stop reminder</h2>
+<pre>cd ~/projects/mini-dc-lab
+./deploy.sh                          <span class="c"># start: 5-8 min, never press Ctrl+C
+                                     # after a reboot it offers to destroy the old copy: answer y</span>
+<span class="c"># wait 2-4 min for TrueNAS to boot</span>
+./scripts/tests.sh | tail -3         <span class="c"># check: 20 passed</span>
+python3 scripts/zabbix-add-hosts.py  <span class="c"># re-register Zabbix hosts</span>
+containerlab destroy -t mini-dc.clab.yml --cleanup   <span class="c"># stop - always before shutting down the laptop</span></pre>
+
+<div class="footer-note">RAM+ Data Center · Containerlab 0.79 · Arista cEOS 4.33.10M · FRRouting · nftables · TrueNAS SCALE 25.10.7 ·
+Zabbix 7.0 · Windows 11 + WSL2 Ubuntu 24.04 — source: <code>docs/testing-guide/testing-guide.html</code></div>
+
+</body>
+</html>
