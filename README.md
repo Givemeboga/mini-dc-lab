@@ -1,7 +1,56 @@
-# Mini Data Center — Containerlab lab
+<div align="center">
 
-The mini data center architecture (network + buildings) as a **Containerlab** lab.
-Every device is a container: no GNS3 VM, no nested virtualization, runs on **Windows 11 Home** through WSL2.
+# Mini Data Center — Containerlab Lab
+
+**A complete data center (network + buildings) emulated with containers on a Windows laptop.**
+No GNS3 VM, no nested virtualization — just WSL2, Docker and Containerlab.
+
+![Containerlab](https://img.shields.io/badge/Containerlab-0.79-0b6ba8)
+![Arista cEOS](https://img.shields.io/badge/Arista_cEOS-4.33.10M-1f5fbf)
+![FRRouting](https://img.shields.io/badge/FRRouting-OSPF-7c3aed)
+![nftables](https://img.shields.io/badge/firewall-nftables-e4572e)
+![Zabbix](https://img.shields.io/badge/Zabbix-7.0-d40000)
+![WSL2](https://img.shields.io/badge/WSL2-Ubuntu_24.04-e95420)
+![Tests](https://img.shields.io/badge/tests-20%2F20_passing-22a06b)
+
+*School project — ESPRIT, cybersecurity & cloud engineering*
+
+[Quick start](#2-quick-start) · [First-time setup](#3-first-time-setup) · [Daily use](#4-daily-use) · [Architecture](#5-architecture) · [Troubleshooting](#7-troubleshooting) · [Team workflow](#8-team-workflow)
+
+<br>
+
+<img src="docs/architecture.svg" alt="Mini data center architecture: ISPs, edges, firewall, cores, ToRs, racks, SAN, NOC and management" width="100%">
+
+</div>
+
+---
+
+## Contents
+
+1. [Overview](#1-overview)
+2. [Quick start](#2-quick-start) — lab already installed
+3. [First-time setup](#3-first-time-setup) — new team member, 11 steps
+4. [Daily use](#4-daily-use) — commands, consoles, graphical view
+5. [Architecture](#5-architecture) — mapping, addressing, features, design changes
+6. [Repository layout](#6-repository-layout)
+7. [Troubleshooting](#7-troubleshooting)
+8. [Team workflow](#8-team-workflow)
+9. [Status](#9-status)
+
+---
+
+## 1. Overview
+
+| | |
+|---|---|
+| **Nodes** | 30 containers · 34 links · out-of-band management network `10.10.10.0/24` |
+| **Internet edge** | 2 ISPs (NAT to the real Internet) · 2 FRR edge routers with NAT and port-forwards |
+| **Security** | FW-01 = FRR (OSPF) + nftables, default-drop policy · DMZ (VLAN 60) with 2 web servers |
+| **Core / access** | 2 Arista cEOS cores (VRRP, LACP, MSTP root, OSPF) · 2 cEOS top-of-rack switches |
+| **Servers** | nginx intranet, Python API, BIND9 DNS, MariaDB, AD (IP/DNS), backup |
+| **Storage** | Isolated iSCSI SAN (tgt) with one LUN per server and per-initiator ACL |
+| **Operations** | NOC with rsyslog from every switch · Zabbix 7 (SNMP + ICMP) on the OOB network |
+| **Proof** | `scripts/tests.sh` — 20 automated checks, plus an ISP / VRRP failover demo |
 
 ```
 Internet (ISP A, ISP B)
@@ -19,42 +68,80 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward to the DMZ
 
 ---
 
-## 1. What you need
+## 2. Quick start
+
+Already installed? From the Ubuntu terminal:
+
+```bash
+cd ~/projects/mini-dc-lab
+git pull
+./deploy.sh                           # 5–8 min — never press Ctrl+C
+./scripts/tests.sh                    # expect: Result: 20 passed, 0 failed
+python3 scripts/zabbix-add-hosts.py   # Zabbix: http://localhost:8080 (Admin / zabbix)
+```
+
+When you are done:
+
+```bash
+containerlab destroy -t mini-dc.clab.yml --cleanup
+```
+
+> [!IMPORTANT]
+> Run the destroy command **before** shutting down Windows or running `wsl --shutdown`.
+> The virtual cables between containers do not survive a WSL restart.
+
+---
+
+## 3. First-time setup
+
+### What you need
 
 | | |
 |---|---|
-| OS | Windows 11 (Home is fine) or Windows 10 22H2, **virtualization enabled in the BIOS/UEFI** |
-| RAM | **32 GB recommended** (WSL gets 16 GB: 4 × cEOS ≈ 5–6 GB, Zabbix ≈ 1 GB, the rest is small). 16 GB machines: see the note in step 1 |
-| Disk | ~10 GB free (images ≈ 4 GB + Ubuntu) |
-| Accounts | GitHub account (invited to this repo) · free **arista.com** account for the cEOS image |
-| Time | ~1 h the first time (mostly downloads and image builds), then 5–8 min per deploy |
+| **OS** | Windows 11 (Home is fine) or Windows 10 22H2, **virtualization enabled in BIOS/UEFI** |
+| **RAM** | **32 GB recommended** — WSL gets 16 GB (4 × cEOS ≈ 5–6 GB, Zabbix ≈ 1 GB). 16 GB laptops: see step 1 |
+| **Disk** | ~10 GB free |
+| **Accounts** | GitHub (invited to this repo) · free **arista.com** account for the cEOS image |
+| **Time** | ~1 h the first time (downloads and image builds), then 5–8 min per deploy |
 
-Versions used by the team: WSL2 + **Ubuntu 24.04**, **Docker Engine 27.x** (not Docker Desktop),
-**Containerlab 0.79.0**, **Arista cEOS-lab 4.33.10M**.
+**Team versions:** WSL2 + Ubuntu 24.04 · Docker Engine 27.x (*not* Docker Desktop) · Containerlab 0.79.0 · Arista cEOS-lab 4.33.10M
 
-> If you disabled Hyper-V features while fighting GNS3, turn them back on:
-> enable **Virtual Machine Platform**, run `bcdedit /set hypervisorlaunchtype auto` (admin), reboot.
+> [!NOTE]
+> Commands marked **PowerShell** run on Windows. Everything else runs in the **Ubuntu** terminal
+> (Windows Terminal → ˅ → Ubuntu-24.04). Do the steps in order.
 
-## 2. First run — step by step
+| Step | What | Time |
+|:---:|---|:---:|
+| 1 | [Install WSL2 + Ubuntu 24.04](#step-1--install-wsl2-and-ubuntu-2404) | 10 min |
+| 2 | [Install Docker Engine](#step-2--install-docker-engine) | 5 min |
+| 3 | [Install Containerlab](#step-3--install-containerlab) | 3 min |
+| 4 | [Connect Git to GitHub](#step-4--connect-git-to-github) | 3 min |
+| 5 | [Clone the repo](#step-5--clone-the-repo) | 1 min |
+| 6 | [Get the Arista cEOS image](#step-6--get-the-arista-ceos-image) | 10 min |
+| 7 | [Build the lab images](#step-7--build-the-lab-images) | 5–10 min |
+| 8 | [Deploy the lab](#step-8--deploy-the-lab) | 5–8 min |
+| 9 | [Check it works](#step-9--check-it-works) | 2 min |
+| 10 | [Open the graphical view](#step-10--open-the-graphical-view) | 5 min |
+| 11 | [Stop the lab](#step-11--stop-the-lab) | 1 min |
 
-Do the steps in order. Commands marked **PowerShell** run on Windows; everything else runs in the
-**Ubuntu** terminal (Windows Terminal → ˅ → Ubuntu-24.04).
+---
 
-### Step 1 — Install WSL2 and Ubuntu 24.04 (PowerShell as Administrator)
+### Step 1 — Install WSL2 and Ubuntu 24.04
+
+**PowerShell (as Administrator):**
 
 ```powershell
 wsl --install -d Ubuntu-24.04
 ```
 
-Reboot if asked, open **Ubuntu-24.04** from the Start menu and create your Linux user and password.
-Then check you are on WSL **2** and up to date:
+Reboot if asked, open **Ubuntu-24.04** from the Start menu and create your Linux user. Then:
 
 ```powershell
 wsl --update
-wsl -l -v
+wsl -l -v          # VERSION column must say 2
 ```
 
-Give WSL enough memory: create `C:\Users\<you>\.wslconfig` with
+Give WSL enough memory — create `C:\Users\<you>\.wslconfig`:
 
 ```ini
 [wsl2]
@@ -63,22 +150,25 @@ processors=6
 swap=4GB
 ```
 
-and apply it with `wsl --shutdown` (PowerShell), then reopen Ubuntu.
+Apply it with `wsl --shutdown` (PowerShell) and reopen Ubuntu.
 
+> [!TIP]
 > **16 GB laptop?** Use `memory=12GB` and, before deploying, comment out the `zbx-db`, `monitor01`
 > and `zbx-web` nodes in `mini-dc.clab.yml` (saves ~1 GB).
 
-Check that systemd is running (needed for Docker) — this must print `systemd`:
+✅ **Check** — systemd must be running (Docker needs it). This must print `systemd`:
 
 ```bash
 ps -p 1 -o comm=
 ```
 
-If it prints `init`, run `printf '[boot]\nsystemd=true\n' | sudo tee /etc/wsl.conf`, then `wsl --shutdown` (PowerShell) and reopen Ubuntu.
+If it prints `init`: `printf '[boot]\nsystemd=true\n' | sudo tee /etc/wsl.conf`, then `wsl --shutdown` and reopen Ubuntu.
 
-### Step 2 — Install Docker Engine inside Ubuntu
+---
 
-Use Docker's official repository (this is what the lab is tested with):
+### Step 2 — Install Docker Engine
+
+Inside Ubuntu, from Docker's official repository (what the lab is tested with):
 
 ```bash
 sudo apt-get update && sudo apt-get install -y ca-certificates curl git
@@ -91,10 +181,12 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 sudo usermod -aG docker $USER
 ```
 
-> ⚠️ **Docker Desktop users:** if Docker Desktop is installed on Windows, open
-> *Settings → Resources → WSL integration* and **untick both** "Enable integration with my default WSL distro"
-> **and** the Ubuntu-24.04 toggle, then *Apply & restart*. Otherwise Docker Desktop takes over Ubuntu's
-> Docker socket and the deploy hangs for 15+ minutes (see Troubleshooting).
+> [!WARNING]
+> **Docker Desktop installed on Windows?** Open *Settings → Resources → WSL integration* and **untick both**
+> "Enable integration with my default WSL distro" **and** the Ubuntu-24.04 toggle, then *Apply & restart*.
+> Otherwise Docker Desktop takes over Ubuntu's Docker socket and the deploy hangs for 15+ minutes.
+
+---
 
 ### Step 3 — Install Containerlab
 
@@ -103,19 +195,23 @@ bash -c "$(curl -sL https://get.containerlab.dev)"
 sudo usermod -aG clab_admins $USER
 ```
 
-The new groups (`docker`, `clab_admins`) only apply to new sessions: close Ubuntu, run
-`wsl --terminate Ubuntu-24.04` in **PowerShell**, and reopen Ubuntu. Then check:
+The new groups only apply to new sessions: close Ubuntu, run `wsl --terminate Ubuntu-24.04` in
+**PowerShell**, and reopen Ubuntu.
+
+✅ **Check:**
 
 ```bash
-groups                               # must list docker and clab_admins
-docker run --rm hello-world          # must print "Hello from Docker!"
-docker info --format '{{.Name}}'     # must print your PC name, NOT docker-desktop
+groups                               # lists docker and clab_admins
+docker run --rm hello-world          # "Hello from Docker!"
+docker info --format '{{.Name}}'     # your PC name — NOT docker-desktop
 containerlab version                 # 0.79.x or newer
 ```
 
 From now on, run `containerlab` **without sudo**.
 
-### Step 4 — Connect Git to GitHub (SSH)
+---
+
+### Step 4 — Connect Git to GitHub
 
 ```bash
 git config --global user.name "Your Name"
@@ -124,13 +220,17 @@ ssh-keygen -t ed25519 -C "$(whoami)@wsl"      # press Enter 3 times
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Copy the printed line into <https://github.com/settings/ssh/new> (type: *Authentication Key*), then test:
+Paste the printed line into <https://github.com/settings/ssh/new> (type: *Authentication Key*).
+
+✅ **Check:**
 
 ```bash
 ssh -T git@github.com      # "Hi <username>! You've successfully authenticated"
 ```
 
-### Step 5 — Clone the repo (Linux filesystem, not `/mnt/c`)
+---
+
+### Step 5 — Clone the repo
 
 ```bash
 mkdir -p ~/projects && cd ~/projects
@@ -138,137 +238,153 @@ git clone git@github.com:Givemeboga/mini-dc-lab.git
 cd mini-dc-lab
 ```
 
-> Always work under `~/projects/...`. A clone under `/mnt/c/...` is very slow and breaks file
-> permissions and line endings for the scripts.
+> [!CAUTION]
+> Always clone under `~/projects/...` (Linux filesystem). A clone under `/mnt/c/...` is very slow
+> and breaks script permissions and line endings.
 
-### Step 6 — Get the Arista cEOS image (each member downloads their own)
+---
 
-The image is licensed by Arista, so it is **not** in the repo.
+### Step 6 — Get the Arista cEOS image
+
+The image is licensed by Arista, so it is **not** in the repo — each member downloads their own.
 
 1. Log in on <https://www.arista.com> → **Support → Software Download**.
-2. **EOS → Active Releases → 4.33 → EOS-4.33.10M → cEOS-lab** → download `cEOS64-lab-4.33.10M.tar.xz` (~800 MB).
-   Take the same version as the team if it is available.
+2. **EOS → Active Releases → 4.33 → EOS-4.33.10M → cEOS-lab** → `cEOS64-lab-4.33.10M.tar.xz` (~800 MB).
 3. Import it (adapt the Windows user name):
 
 ```bash
 cp /mnt/c/Users/<you>/Downloads/cEOS64-lab-4.33.10M.tar.xz ~/
 docker import ~/cEOS64-lab-4.33.10M.tar.xz ceos:latest
-docker images ceos                   # ceos  latest  ~2.6 GB
 rm ~/cEOS64-lab-4.33.10M.tar.xz      # optional, frees 800 MB
 ```
 
-The tag **must** be `ceos:latest` — the topology uses that name.
+✅ **Check** — `docker images ceos` shows `ceos  latest  ~2.6GB`. The tag **must** be `ceos:latest`.
 
-### Step 7 — Build the lab images (`setup.sh`, ~5–10 min)
+---
+
+### Step 7 — Build the lab images
 
 ```bash
 ./setup.sh
 ```
 
-It raises the kernel *inotify* limits (asks your sudo password once — several cEOS will not boot
-without it), builds `dc-router` (FRR + nftables) and `dc-host` (Debian services), checks `ceos:latest`
-and pre-pulls the Zabbix/PostgreSQL images. It ends with `Ready. Deploy with: ./deploy.sh`.
+What it does:
+- raises the kernel *inotify* limits (asks your sudo password once — several cEOS won't boot without it);
+- builds `dc-router` (FRR + nftables) and `dc-host` (Debian services);
+- checks `ceos:latest` and pre-pulls the Zabbix / PostgreSQL images.
 
-### Step 8 — Deploy the lab (5–8 min)
+✅ **Check** — it ends with `Ready. Deploy with: ./deploy.sh`.
+
+---
+
+### Step 8 — Deploy the lab
 
 ```bash
 ./deploy.sh
 ```
 
-> 🛑 **Never press Ctrl+C in this window** — it cancels the deploy and destroys the lab.
-> The output stops for several minutes while the 4 Arista switches boot one after another
-> (`startup-delay` 30/60/90 s). That is normal. A message like
+> [!CAUTION]
+> **Never press Ctrl+C in this window** — it cancels the deploy and destroys the lab.
+> The output stops for several minutes while the 4 Arista switches boot one after another. That is normal.
 > `[deploy.sh] tor-01 booted into rescue mode -> continuing the boot` is also normal: the script fixes it.
 
-To watch progress, open a **second** Ubuntu tab:
+Watch progress from a **second** Ubuntu tab:
 
 ```bash
 watch -n5 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep clab-mini-dc'
 ```
 
-The deploy is finished when it prints a table of 30 nodes and `Deployed. Wait ~30 s ...`.
+✅ **Check** — the deploy prints a table of 30 nodes and `Deployed. Wait ~30 s ...`.
+
+---
 
 ### Step 9 — Check it works
 
-Wait ~30 s (OSPF / spanning tree converge), then:
+Wait ~30 s for OSPF and spanning tree to converge, then:
 
 ```bash
 ./scripts/tests.sh
 ```
 
-Expected last line: **`Result: 20 passed, 0 failed`**. If a test fails, wait one more minute and run it
-again; if it still fails, see [Troubleshooting](#9-troubleshooting).
+✅ **Check** — last line: **`Result: 20 passed, 0 failed`**.
+A test failed? Wait a minute and run it again, then see [Troubleshooting](#7-troubleshooting).
 
-Register the devices in Zabbix (needed after **every** deploy):
+Register the devices in Zabbix (needed after **every** deploy), then open <http://localhost:8080>
+in your Windows browser (`Admin` / `zabbix`):
 
 ```bash
 python3 scripts/zabbix-add-hosts.py
 ```
 
-Open <http://localhost:8080> in your Windows browser — login `Admin` / `zabbix`. Hosts turn green after 1–2 min.
-
-Optional — the failover demo (cuts ISP A and the VRRP master for a few seconds, then restores them):
+Optional — failover demo (cuts ISP A and the VRRP master for a few seconds, then restores them):
 
 ```bash
-./scripts/tests.sh failover          # expect ≈0.2 s loss for ISP, ≈2.8 s for VRRP
+./scripts/tests.sh failover          # ≈0.2 s loss for ISP, ≈2.8 s for VRRP
 ```
 
-### Step 10 — Open the graphical view (VS Code + TopoViewer)
+---
 
-1. Install **VS Code** on Windows and the extensions **WSL** (Microsoft) and **Containerlab** (srl-labs).
-2. In Ubuntu, from the lab folder: `code .` (VS Code opens connected to WSL).
-3. Click the **Containerlab** icon in the left sidebar → right-click `mini-dc` → **Graph (TopoViewer)**.
-4. The layout uses a white canvas: switch VS Code to a light theme (**Ctrl+K Ctrl+T → Light Modern**) so node names are readable.
+### Step 10 — Open the graphical view
+
+1. Install **VS Code** on Windows with the extensions **WSL** (Microsoft) and **Containerlab** (srl-labs).
+2. In Ubuntu, from the lab folder: `code .`
+3. Containerlab icon in the sidebar → right-click `mini-dc` → **Graph (TopoViewer)**.
+4. Switch VS Code to a light theme (**Ctrl+K Ctrl+T → Light Modern**) — the layout uses a white canvas.
 
 Right-click a node for SSH / console, right-click a link for a Wireshark capture.
 
-### Step 11 — Stop, and start again later
+---
+
+### Step 11 — Stop the lab
 
 ```bash
-containerlab destroy -t mini-dc.clab.yml --cleanup      # stop and remove everything
-```
-
-Do this **before** shutting down Windows or running `wsl --shutdown`. The virtual cables between
-containers do not survive a WSL restart: if you forgot, Docker restarts the containers half-broken —
-just run the destroy command above, then `./deploy.sh` again.
-
-Typical session after the first install:
-
-```bash
-cd ~/projects/mini-dc-lab
-git pull
-./deploy.sh
-./scripts/tests.sh
-python3 scripts/zabbix-add-hosts.py
-# ... work ...
 containerlab destroy -t mini-dc.clab.yml --cleanup
 ```
 
-## 3. Everyday commands & consoles
+Forgot before a reboot? Docker restarts the containers half-broken — run the destroy command, then `./deploy.sh` again.
 
-```bash
-./deploy.sh                                        # start (5–8 min)
-./scripts/tests.sh                                 # 20 functional tests
-./scripts/tests.sh failover                        # failover demo
-python3 scripts/zabbix-add-hosts.py                # register devices in Zabbix (after each deploy)
-containerlab inspect -t mini-dc.clab.yml           # list nodes and IPs
-containerlab destroy -t mini-dc.clab.yml --cleanup # stop
-```
+🎉 **Setup done.** Next time, use the [Quick start](#2-quick-start).
 
-**Consoles**
+---
+
+## 4. Daily use
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `./deploy.sh` | Start the lab (5–8 min) |
+| `./scripts/tests.sh` | 20 functional checks |
+| `./scripts/tests.sh failover` | ISP + VRRP failover demo |
+| `python3 scripts/zabbix-add-hosts.py` | Register all devices in Zabbix (after each deploy) |
+| `containerlab inspect -t mini-dc.clab.yml` | List nodes, state and management IPs |
+| `containerlab destroy -t mini-dc.clab.yml --cleanup` | Stop and remove the lab |
+
+### Consoles
 
 | Device | How |
 |---|---|
 | cEOS (cores, ToRs) | `ssh admin@clab-mini-dc-core-01` (password `admin`) or `docker exec -it clab-mini-dc-core-01 Cli` |
-| FRR routers / FW | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing) or `... sh` (shell, `nft list ruleset`) |
+| FRR routers / firewall | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing) · `... sh` then `nft list ruleset` |
 | Servers / PCs | `docker exec -it clab-mini-dc-web01 bash` |
 | Zabbix | <http://localhost:8080> — `Admin` / `zabbix` |
 
-The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.svg).
+Useful checks:
+
+```bash
+docker exec clab-mini-dc-core-01 Cli -p 15 -c "show vrrp brief"
+docker exec clab-mini-dc-core-01 Cli -p 15 -c "show ip ospf neighbor"
+docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"
+```
 
 ---
 
-## 4. Design → lab mapping
+## 5. Architecture
+
+The full diagram is [`docs/architecture.svg`](docs/architecture.svg) (shown at the top).
+
+<details>
+<summary><b>Design → lab mapping</b></summary>
 
 | Building / room | Device | Lab node | Image |
 |---|---|---|---|
@@ -285,7 +401,10 @@ The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.
 | | Monitoring | `monitor01` (Zabbix server), `zbx-web`, `zbx-db` | official images |
 | Bâtiments techniques A/B | UPS, generators, cooling | physical only — not emulated | |
 
-## 5. Addressing
+</details>
+
+<details>
+<summary><b>Addressing</b></summary>
 
 | VLAN / segment | Network | Gateway | Hosts |
 |---|---|---|---|
@@ -301,7 +420,10 @@ The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.
 | Edges ↔ FW | 10.0.1.0/30, .4/30 | — | edge-r1 .1, edge-r2 .5, fw .2/.6 |
 | WAN | 10.0.0.0/30, .4/30 | — | edge-r1 .1 ↔ isp-a .2, edge-r2 .5 ↔ isp-b .6 |
 
-## 6. How each feature is implemented
+</details>
+
+<details>
+<summary><b>How each feature is implemented</b></summary>
 
 - **Dual ISP + failover** — each edge has a static default to its ISP and injects it into OSPF
   (`default-information originate`, metric 10 on edge-r1, 20 on edge-r2). If an ISP link dies the
@@ -322,9 +444,12 @@ The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.
 - **NOC** — switches send syslog to `syslog01` (`/var/log/remote/<host>.log`); Zabbix polls the switches
   over SNMP (community `dclab`) and pings every node.
 
-## 7. Differences from the architecture diagram
+</details>
 
-| Diagram | Lab | Why |
+<details>
+<summary><b>Differences from the original design</b></summary>
+
+| Original design | Lab | Why |
 |---|---|---|
 | pfSense | FRR + nftables | pfSense is a VM image (needs KVM) |
 | HSRP | VRRP | HSRP is Cisco-only; VRRP is the open standard |
@@ -335,39 +460,86 @@ The full architecture diagram is in [`docs/architecture.svg`](docs/architecture.
 | FW 10.10.99.254 | routed /30 links to each core | lets OSPF use both cores |
 | AD01 (Samba AD) | IP + DNS only | optional; install `samba` inside ad01 if needed |
 
-## 8. Status
+</details>
 
-Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM, cEOS 4.33.10M): VRRP, LACP, MSTP,
-OSPF (cores + firewall), ISP failover, NAT/port-forwards, firewall policy, DNS, MariaDB from the DMZ,
-iSCSI with per-server ACL, storage isolation, syslog (19/20 tests on first full run; the 20th,
-users → db01:3306, is now enforced by the db01 host firewall).
+---
 
-## 9. Troubleshooting
+## 6. Repository layout
+
+| Path | Purpose |
+|---|---|
+| `mini-dc.clab.yml` | Topology: 30 nodes, 34 links, management network `dc-oob` |
+| `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
+| `.clab-icons/` | Custom TopoViewer icons |
+| `configs/ceos/` | Arista startup configs — cores (L3, VRRP, MSTP root, OSPF), ToRs (L2) |
+| `configs/frr/` | FRRouting configs for the edges, firewall and ISPs |
+| `configs/nft/` | nftables — firewall policy, edge NAT / port-forwards, ISP NAT, db01 host firewall |
+| `scripts/init-router.sh` | Boot script for ISPs, edges, firewall (sysctl, routes, MTU, nftables) |
+| `scripts/init-bridge.sh` | Turns a container into a Linux-bridge switch (`stp` for dual-homed ones) |
+| `scripts/init-host.sh` | Boot script for every server / PC — role chosen by hostname |
+| `scripts/tests.sh` | 20 functional checks · `failover` demo |
+| `scripts/zabbix-add-hosts.py` | Registers all devices in Zabbix through its API |
+| `deploy.sh` | `containerlab deploy` + watcher that fixes cEOS rescue mode |
+| `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host`, pulls Zabbix images |
+| `images/` | Dockerfiles for `dc-router` and `dc-host` |
+| `docs/architecture.svg` | Architecture diagram |
+| `CLAUDE.md` | Notes for the Claude Code assistant: environment, commands, lessons learned |
+
+---
+
+## 7. Troubleshooting
+
+**Install / Docker**
 
 | Symptom | Fix |
 |---|---|
-| `docker: permission denied` | `sudo usermod -aG docker $USER`, reopen WSL |
-| cEOS nodes stuck / slow | normal first boot takes 1–2 min; check RAM with `free -h` |
-| Not enough RAM | comment out `zbx-*` and `monitor01`, or give WSL more RAM in `%UserProfile%\.wslconfig` (`[wsl2]` `memory=12GB`) |
-| Deploy silent for minutes | normal while cEOS boots; `deploy.sh` also auto-fixes a switch stuck in *rescue mode* |
+| `docker: permission denied` | `sudo usermod -aG docker $USER`, then `wsl --terminate Ubuntu-24.04` and reopen |
+| Deploy hangs 15+ min at "Running postdeploy actions", `docker ps` shows no lab | Docker Desktop took over the socket — `docker info --format '{{.Name}}'` says `docker-desktop`. In Docker Desktop → *Settings → Resources → WSL integration*, untick **"Enable integration with my default WSL distro"** and the Ubuntu toggle, then `wsl --shutdown` |
+| Not enough RAM | Comment out `zbx-*` and `monitor01`, or raise `memory=` in `%UserProfile%\.wslconfig` |
+
+**Deploy / switches**
+
+| Symptom | Fix |
+|---|---|
+| Deploy silent for minutes | Normal while cEOS boots; `deploy.sh` also fixes a switch stuck in *rescue mode* |
 | A switch never gets `Uptime` | `docker logs --tail 10 clab-mini-dc-tor-01` → if it says *rescue mode*: `docker exec clab-mini-dc-tor-01 systemctl default --no-block` |
 | cEOS fails to boot with several switches | inotify limits too low — `setup.sh` raises them (`fs.inotify.max_user_instances=8192`) |
+| Lab half-dead after a reboot / `wsl --shutdown` | Links don't survive a WSL restart: `containerlab destroy -t mini-dc.clab.yml --cleanup && ./deploy.sh` |
+
+**Network / services**
+
+| Symptom | Fix |
+|---|---|
 | OSPF core ↔ fw-01 stuck in EXCH START | MTU: `docker exec clab-mini-dc-fw-01 ip link set eth3 mtu 1500` (same for eth4) |
-| Hosts can't reach the Internet | check `docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"` has a default |
-| noc-sw / user-sw no traffic for ~30 s | Spanning Tree converging with the Linux bridges; wait |
-| Zabbix page not loading | wait 1–2 min after deploy (DB initialisation) |
-| Deploy hangs 15+ min at "Running postdeploy actions" / `docker ps` shows no lab | Docker Desktop took over the socket: `docker info --format '{{.Name}}'` says `docker-desktop`. In Docker Desktop → Settings → Resources → WSL integration, untick **"Enable integration with my default WSL distro"** and the Ubuntu toggle, then `wsl --shutdown` |
-| Lab half-dead after a reboot / `wsl --shutdown` | links don't survive a WSL restart: `containerlab destroy -t mini-dc.clab.yml --cleanup && ./deploy.sh` |
+| Hosts can't reach the Internet | Check `docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"` has a default route |
+| noc-sw / user-sw no traffic for ~30 s | Spanning tree converging with the Linux bridges — wait |
+| Zabbix page not loading | Wait 1–2 min after deploy (database initialisation) |
 
-## 10. Working on this repo as a team
+---
 
-First install: follow [section 2](#2-first-run--step-by-step) from step 1.
+## 8. Team workflow
 
-- **Before you start working:** `git pull` on `main`.
-- **One branch per task:** `git switch -c feature/<topic>` → commit → `git push -u origin feature/<topic>` →
-  open a pull request on GitHub. No direct pushes to `main`.
-- **Run `./scripts/tests.sh` before every pull request** and paste the `Result: 20 passed` line in the description.
-- **TopoViewer layout:** `mini-dc.clab.yml.annotations.json` is rewritten whenever someone moves things in the
-  graph — agree on one person for layout changes to avoid merge conflicts. Custom icons live in `.clab-icons/`.
-- **Not versioned** (see `.gitignore`): `clab-mini-dc/` (generated at every deploy, contains TLS keys),
-  logs, layout backups, the cEOS image. Never commit the cEOS `.tar.xz`.
+New here? Start with [First-time setup](#3-first-time-setup).
+
+1. **Update** — `git pull` on `main` before you start.
+2. **Branch** — one branch per task: `git switch -c feature/<topic>`.
+3. **Test** — `./scripts/tests.sh` must say `20 passed`.
+4. **Push** — `git push -u origin feature/<topic>`, then open a pull request and paste the test result.
+5. **Review & merge** — no direct pushes to `main`.
+
+> [!NOTE]
+> `mini-dc.clab.yml.annotations.json` (the TopoViewer layout) is rewritten whenever someone moves things
+> in the graph — agree on one person for layout changes to avoid merge conflicts.
+
+**Not versioned** (see `.gitignore`): `clab-mini-dc/` (generated at every deploy, contains TLS keys),
+logs, layout backups and the cEOS image. Never commit the cEOS `.tar.xz`.
+
+---
+
+## 9. Status
+
+Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM, cEOS 4.33.10M): VRRP, LACP, MSTP,
+OSPF (cores + firewall), ISP failover, NAT / port-forwards, firewall policy, DNS, MariaDB from the DMZ,
+iSCSI with per-server ACL, storage isolation, syslog — **20/20 tests passing**.
+
+Measured failover: ISP ≈ 0.2 s · VRRP gateway ≈ 2.8 s.
