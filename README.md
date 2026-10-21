@@ -398,8 +398,9 @@ Forgot before a reboot? Docker restarts the containers half-broken — run the d
 
 > [!TIP]
 > **Testing guide (PDF):** [`docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf`](docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf)
-> lists one command per feature (edge, firewall, core, ToR, DNS, DMZ, security, TrueNAS SAN, NOC, failover) with
-> what each one proves, plus a pass/fail checklist — use it for demos and after every change.
+> explains every layer and lists one command per feature (edge, firewall, core, ToR, DNS, DMZ, security, TrueNAS SAN,
+> NOC, failover) with the expected result and why it matters, rule-by-rule firewall testing from the firewall shell,
+> the 20 automated checks explained, and a pass/fail checklist. Use it for demos and after every change.
 
 ### Commands
 
