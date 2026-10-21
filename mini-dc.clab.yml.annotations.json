@@ -404,42 +404,42 @@
     },
     {
       "id": "nd-web01",
-      "text": "10.10.20.10 · nginx",
+      "text": "10.10.20.10\nnginx",
       "position": {
-        "x": 47,
+        "x": 52,
         "y": 1145
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
       "textAlign": "center",
-      "width": 240
+      "width": 176
     },
     {
       "id": "nd-app01",
-      "text": "10.10.20.20 · API",
+      "text": "10.10.20.20\nAPI",
       "position": {
-        "x": 293,
+        "x": 234,
         "y": 1145
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
       "textAlign": "center",
-      "width": 240
+      "width": 176
     },
     {
       "id": "nd-dns01",
-      "text": "10.10.20.40 · BIND9",
+      "text": "10.10.20.40\nBIND9",
       "position": {
-        "x": 540,
+        "x": 416,
         "y": 1145
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
       "textAlign": "center",
-      "width": 240
+      "width": 176
     },
     {
       "id": "nd-tor-02",
@@ -456,7 +456,7 @@
     },
     {
       "id": "nd-db01",
-      "text": "10.10.20.30 · MariaDB",
+      "text": "10.10.20.30 · DB primary",
       "position": {
         "x": 844,
         "y": 1145
@@ -648,6 +648,31 @@
       "fontWeight": "bold",
       "textAlign": "center",
       "width": 240
+    },
+    {
+      "id": "nd-db02",
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "text": "10.10.20.31\nMariaDB replica",
+      "position": {
+        "x": 598,
+        "y": 1145
+      },
+      "width": 176
+    },
+    {
+      "id": "t-dbha",
+      "text": "MariaDB HA: db01 ⇄ db02 · VIP 10.10.20.35",
+      "position": {
+        "x": 45,
+        "y": 712
+      },
+      "fontSize": 17,
+      "fontColor": "#6d28d9",
+      "fontWeight": "bold",
+      "textAlign": "left"
     }
   ],
   "freeShapeAnnotations": [
@@ -1125,7 +1150,7 @@
     {
       "id": "web01",
       "position": {
-        "x": 112,
+        "x": 85,
         "y": 1011
       },
       "icon": "dc-server",
@@ -1135,7 +1160,7 @@
     {
       "id": "app01",
       "position": {
-        "x": 358,
+        "x": 267,
         "y": 1011
       },
       "icon": "dc-server",
@@ -1145,7 +1170,7 @@
     {
       "id": "dns01",
       "position": {
-        "x": 605,
+        "x": 449,
         "y": 1011
       },
       "icon": "dc-server",
@@ -1311,6 +1336,15 @@
       "icon": "dc-pc",
       "groupId": "g-mon",
       "labelPosition": "bottom"
+    },
+    {
+      "id": "db02",
+      "icon": "dc-server",
+      "groupId": "g-s1",
+      "position": {
+        "x": 631,
+        "y": 1011
+      }
     }
   ],
   "edgeAnnotations": [],

@@ -115,6 +115,11 @@ topology:
       group: "Bat. informatique - Salle serveurs 1"
       mgmt-ipv4: 10.10.10.103
       exec: [bash /lab/scripts/init-host.sh]
+    db02:                            # MariaDB standby (replica of db01), other rack; keepalived VIP 10.10.20.35
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 1"
+      mgmt-ipv4: 10.10.10.114
+      exec: [bash /lab/scripts/init-host.sh]
 
     # ------------------------------ Batiment informatique - Salle serveurs 2 (Rack B)
     tor-02:
@@ -239,6 +244,7 @@ topology:
     - endpoints: ["tor-01:eth5", "web01:eth1"]
     - endpoints: ["tor-01:eth6", "app01:eth1"]
     - endpoints: ["tor-01:eth7", "dns01:eth1"]
+    - endpoints: ["tor-01:eth8", "db02:eth1"]
     # Rack B
     - endpoints: ["tor-02:eth5", "db01:eth1"]
     - endpoints: ["tor-02:eth6", "ad01:eth1"]

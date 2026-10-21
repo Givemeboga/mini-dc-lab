@@ -36,7 +36,7 @@ functional() {
   check "Internet -> edge-r1:80 -> web-dmz01"        pass x isp-a curl -sf -m3 http://10.0.0.1
   check "Internet -> edge-r2:80 -> web-dmz02"        pass x isp-b curl -sf -m3 http://10.0.0.5
   check "Internet cannot reach internal IPs"         block x isp-a curl -sf -m3 http://10.10.20.10
-  check "DMZ web -> MariaDB on db01 (allowed)"       pass x web-dmz01 mariadb -h 10.10.20.30 -u web -pWebPass2026 shop -e 'select 1'
+  check "DMZ web -> MariaDB via db VIP (allowed)"    pass x web-dmz01 mariadb -h 10.10.20.35 -u web -pWebPass2026 shop -e 'select 1'
   check "DMZ web -> web01:80 (pivot blocked)"        block x web-dmz01 curl -sf -m3 http://10.10.20.10
   check "DMZ web -> storage01 (blocked)"             block x web-dmz01 ping -c1 -W1 10.10.30.10
 

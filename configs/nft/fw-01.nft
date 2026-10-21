@@ -13,7 +13,7 @@ define OUTSIDE  = { "eth1", "eth2" }
 define INSIDE   = { "eth3", "eth4" }
 define DMZ      = "eth5"
 define DMZ_WEB  = { 10.10.60.10, 10.10.60.11 }
-define DB01     = 10.10.20.30
+define DB01     = 10.10.20.35   # MariaDB virtual IP (keepalived: db01 primary, db02 standby)
 define DNS01    = 10.10.20.40
 
 table inet filter {

@@ -36,12 +36,14 @@ zone "dc.lab" { type master; file "/etc/bind/db.dc.lab"; };
 CONF
   cat > /etc/bind/db.dc.lab <<'ZONE'
 $TTL 300
-@          IN SOA dns01.dc.lab. admin.dc.lab. ( 2026092601 3600 600 86400 300 )
+@          IN SOA dns01.dc.lab. admin.dc.lab. ( 2026102101 3600 600 86400 300 )
            IN NS  dns01.dc.lab.
 gw         IN A   10.10.20.1
 web01      IN A   10.10.20.10
 app01      IN A   10.10.20.20
 db01       IN A   10.10.20.30
+db02       IN A   10.10.20.31
+db         IN A   10.10.20.35
 dns01      IN A   10.10.20.40
 ad01       IN A   10.10.20.50
 backup01   IN A   10.10.40.10
@@ -58,22 +60,89 @@ ZONE
   named -u bind -4 </dev/null >/dev/null 2>&1
 }
 
-start_db() {
+# ---- MariaDB high availability -----------------------------------------------
+# db01 = primary, db02 = replica (GTID replication). keepalived (VRRP 35) moves the
+# database virtual IP 10.10.20.35 (db.dc.lab) to db02 if MariaDB on db01 dies; db02 is then
+# promoted to a writable primary (scripts/db-promote.sh). Test: ./scripts/db-failover.sh
+DB_VIP=10.10.20.35
+REPL_PASS=ReplPass2026
+
+db_users_sql() { cat <<SQL
+CREATE USER IF NOT EXISTS 'web'@'10.10.60.%' IDENTIFIED BY 'WebPass2026';
+CREATE USER IF NOT EXISTS 'app'@'10.10.20.%' IDENTIFIED BY 'AppPass2026';
+CREATE USER IF NOT EXISTS 'repl'@'10.10.20.%' IDENTIFIED BY '$REPL_PASS';
+GRANT SELECT ON shop.* TO 'web'@'10.10.60.%';
+GRANT ALL ON shop.* TO 'app'@'10.10.20.%';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT, RELOAD, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'repl'@'10.10.20.%';
+FLUSH PRIVILEGES;
+SQL
+}
+
+mariadb_up() {   # $1 = server-id, $2 = read_only (0|1)
+  cat > /etc/mysql/mariadb.conf.d/60-ha.cnf <<CNF
+[mysqld]
+server-id         = $1
+log_bin           = mysql-bin
+binlog_format     = ROW
+log_slave_updates = ON
+read_only         = $2
+skip_name_resolve = ON          # no reverse-DNS lookup per client: fast logins, also during failover
+CNF
   mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
   mysqld_safe --bind-address=0.0.0.0 </dev/null >/var/log/mysqld_safe.log 2>&1 &
   for i in $(seq 1 30); do mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 1; done
-  mariadb <<'SQL'
+}
+
+start_db() {          # db01: primary, owns the shop data
+  mariadb_up 1 0
+  { cat <<'SQL'
 CREATE DATABASE IF NOT EXISTS shop;
 USE shop;
 CREATE TABLE IF NOT EXISTS products (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(64), price DECIMAL(8,2));
 INSERT INTO products (name, price) SELECT * FROM (SELECT 'Rack 42U', 1200.00) t WHERE NOT EXISTS (SELECT 1 FROM products);
 INSERT INTO products (name, price) SELECT 'UPS 10kVA', 3500.00 FROM DUAL WHERE (SELECT COUNT(*) FROM products) < 2;
-CREATE USER IF NOT EXISTS 'web'@'10.10.60.%' IDENTIFIED BY 'WebPass2026';
-CREATE USER IF NOT EXISTS 'app'@'10.10.20.%' IDENTIFIED BY 'AppPass2026';
-GRANT SELECT ON shop.* TO 'web'@'10.10.60.%';
-GRANT ALL ON shop.* TO 'app'@'10.10.20.%';
-FLUSH PRIVILEGES;
 SQL
+    db_users_sql; } | mariadb
+}
+
+start_db_replica() {  # db02: copy of db01, then live replication from it
+  local primary=10.10.20.30 r="-u repl -p$REPL_PASS"
+  mariadb_up 2 1
+  { echo "SET sql_log_bin=0;"; db_users_sql; } | mariadb
+  for i in $(seq 1 90); do
+    mariadb -h $primary $r -N -e 'select count(*) from shop.products' 2>/dev/null | grep -q '[1-9]' && break; sleep 2
+  done
+  # consistent snapshot + the GTID position it corresponds to, then replicate from there
+  mariadb-dump -h $primary $r --single-transaction --gtid --master-data=1 --databases shop >/tmp/seed.sql 2>/var/log/db-seed.log
+  { echo "SET sql_log_bin=0;"; cat /tmp/seed.sql; } | mariadb
+  mariadb -e "CHANGE MASTER TO MASTER_HOST='$primary', MASTER_USER='repl', MASTER_PASSWORD='$REPL_PASS',
+              MASTER_USE_GTID=slave_pos, MASTER_CONNECT_RETRY=1; START SLAVE;"
+}
+
+start_keepalived() {  # $1 = VRRP priority (db01 110, db02 100); nopreempt = no automatic failback
+  install -m 755 /lab/scripts/db-promote.sh /usr/local/sbin/db-promote.sh
+  cat > /etc/keepalived/keepalived.conf <<CONF
+global_defs { enable_script_security; script_user root }
+vrrp_script chk_mariadb {
+    script "/usr/bin/mariadb-admin --connect-timeout=1 ping"
+    interval 1
+    timeout 2
+    fall 2
+    rise 2
+}
+vrrp_instance DB {
+    state BACKUP
+    nopreempt
+    interface eth1
+    virtual_router_id 35
+    priority $1
+    advert_int 1
+    virtual_ipaddress { $DB_VIP/24 dev eth1 }
+    track_script { chk_mariadb }
+    notify_master "/usr/local/sbin/db-promote.sh"
+}
+CONF
+  keepalived -f /etc/keepalived/keepalived.conf </dev/null >/dev/null 2>&1
 }
 
 start_iscsi_target() {
@@ -110,7 +179,7 @@ CONF
 
 start_app() {
   mkdir -p /srv/app
-  echo '{"service":"app01","status":"ok","db":"10.10.20.30:3306"}' > /srv/app/index.json
+  echo '{"service":"app01","status":"ok","db":"db.dc.lab (10.10.20.35):3306"}' > /srv/app/index.json
   nohup python3 -m http.server 8080 --directory /srv/app </dev/null >/var/log/app.log 2>&1 &
 }
 
@@ -119,8 +188,11 @@ case "$H" in
   web01)     addr eth1 10.10.20.10/24; gw 10.10.20.1; use_dc_dns; web_page "Internal intranet (VLAN 20)" "#2f6fb3" ;;
   app01)     addr eth1 10.10.20.20/24; gw 10.10.20.1; use_dc_dns; start_app ;;
   dns01)     addr eth1 10.10.20.40/24; gw 10.10.20.1; start_dns; use_dc_dns ;;
+  db02)      addr eth1 10.10.20.31/24; gw 10.10.20.1; use_dc_dns; start_db_replica
+             nft -f /lab/configs/nft/db01-host.nft; sleep 5; start_keepalived 100 ;;
   # ---- Salle serveurs 2 (TOR-02) ------------------------------------------
-  db01)      addr eth1 10.10.20.30/24; gw 10.10.20.1; addr eth2 10.10.30.30/24; use_dc_dns; start_db; nft -f /lab/configs/nft/db01-host.nft ;;
+  db01)      addr eth1 10.10.20.30/24; gw 10.10.20.1; addr eth2 10.10.30.30/24; use_dc_dns; start_db
+             nft -f /lab/configs/nft/db01-host.nft; start_keepalived 110 ;;
   ad01)      addr eth1 10.10.20.50/24; gw 10.10.20.1; use_dc_dns ;;
   backup01)  addr eth1 10.10.40.10/24; gw 10.10.40.1; addr eth2 10.10.30.40/24; use_dc_dns ;;
   # ---- Zone stockage (not routed) -----------------------------------------
