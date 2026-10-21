@@ -44,14 +44,14 @@ No GNS3 VM, no nested virtualization — just WSL2, Docker and Containerlab.
 
 | | |
 |---|---|
-| **Nodes** | 30 containers · 34 links · out-of-band management network `10.10.10.0/24` |
+| **Nodes** | 31 containers · 35 links · out-of-band management network `10.10.10.0/24` |
 | **Internet edge** | 2 ISPs (NAT to the real Internet) · 2 FRR edge routers with NAT and port-forwards |
 | **Security** | FW-01 = FRR (OSPF) + nftables, default-drop policy · DMZ (VLAN 60) with 2 web servers |
 | **Core / access** | 2 Arista cEOS cores (VRRP, LACP, MSTP root, OSPF) · 2 cEOS top-of-rack switches |
-| **Servers** | nginx intranet, Python API, BIND9 DNS, MariaDB, AD (IP/DNS), backup |
+| **Servers** | nginx intranet, Python API, BIND9 DNS, AD (IP/DNS), backup · **MariaDB HA**: db01 primary + db02 replica, keepalived virtual IP (failover ≈2.3 s) |
 | **Storage** | **TrueNAS SCALE 25.10** (KVM virtual machine inside the lab): ZFS mirror, one zvol / iSCSI LUN per server, per-initiator ACL, isolated SAN |
 | **Operations** | NOC with rsyslog from every switch · Zabbix 7 (SNMP + ICMP) on the OOB network |
-| **Proof** | `scripts/tests.sh` — 20 automated checks, plus an ISP / VRRP failover demo |
+| **Proof** | `scripts/tests.sh` — 20 automated checks, ISP / VRRP failover demo, `scripts/db-failover.sh` database failover test |
 
 ```
 Internet (ISP A, ISP B)
@@ -312,7 +312,7 @@ Watch progress from a **second** Ubuntu tab:
 watch -n5 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep clab-mini-dc'
 ```
 
-✅ **Check** — the deploy prints a table of 30 nodes and `Deployed. Wait ~30 s ...`.
+✅ **Check** — the deploy prints a table of 31 nodes and `Deployed. Wait ~30 s ...`.
 If it says *"An old copy of the lab exists"* (after a reboot), answer `y`. If it says `Deploy FAILED`, read the ERROR above it.
 
 ---
@@ -409,6 +409,9 @@ Forgot before a reboot? Docker restarts the containers half-broken — run the d
 | `./deploy.sh` | Start the lab (5–8 min) |
 | `./scripts/tests.sh` | 20 functional checks |
 | `./scripts/tests.sh failover` | ISP + VRRP failover demo |
+| `./scripts/db-failover.sh status` | Database HA: who owns the DB virtual IP, replication health |
+| `./scripts/db-failover.sh` | Crash MariaDB on the primary and measure the takeover (`server` = node offline) |
+| `./scripts/db-failover.sh restore` | Rebuild the failed DB node as the new replica |
 | `python3 scripts/zabbix-add-hosts.py` | Register all devices in Zabbix (after each deploy) |
 | `python3 scripts/truenas-setup.py` | (Re)apply the TrueNAS pool / zvols / iSCSI configuration |
 | `containerlab inspect -t mini-dc.clab.yml` | List nodes, state and management IPs |
@@ -454,7 +457,7 @@ Two views of the same design:
 | | FW-01 | `fw-01` — OSPF + **nftables** (replaces pfSense) | dc-router |
 | | CORE-01 / CORE-02 | `core-01`, `core-02` | **cEOS** |
 | DMZ (VLAN 60) | DMZ-SW, WEB-DMZ01/02 | `dmz-sw` (Linux bridge), `web-dmz01/02` (nginx) | dc-host |
-| Salle serveurs 1 | TOR-01, WEB01, APP01, DNS01 | `tor-01` (cEOS), `web01` (nginx), `app01` (Python API), `dns01` (BIND9) | |
+| Salle serveurs 1 | TOR-01, WEB01, APP01, DNS01 | `tor-01` (cEOS), `web01` (nginx), `app01` (Python API), `dns01` (BIND9), `db02` (MariaDB replica) | |
 | Salle serveurs 2 | TOR-02, DB01, AD01, BACKUP01 | `tor-02` (cEOS), `db01` (MariaDB), `ad01`, `backup01` | |
 | Zone stockage | STORAGE-SW, STORAGE01 | `storage-sw` (bridge), `storage01` (**TrueNAS SCALE** VM under KVM) | dc-truenas |
 | Bât. logistique | NOC, users | `noc-sw`, `user-sw` (bridges with STP, dual-homed), `noc-ws`, `syslog01`, `pc-01`, `pc-02` | |
@@ -470,7 +473,7 @@ Two views of the same design:
 | VLAN / segment | Network | Gateway | Hosts |
 |---|---|---|---|
 | OOB management (VLAN 10 role) | 10.10.10.0/24 | .1 | cores .11/.12, ToRs .21/.22, edges .31/.32, fw .40, Zabbix .50–.52, bridges .71–.74, servers .100–.113 |
-| 20 Servers | 10.10.20.0/24 | VRRP .1 (core-01 .2 master, core-02 .3) | web01 .10, app01 .20, db01 .30, dns01 .40, ad01 .50 |
+| 20 Servers | 10.10.20.0/24 | VRRP .1 (core-01 .2 master, core-02 .3) | web01 .10, app01 .20, db01 .30, db02 .31, **DB virtual IP .35** (`db.dc.lab`), dns01 .40, ad01 .50 |
 | 30 Storage (not routed) | 10.10.30.0/24 | none | storage01 .10, db01 .30, backup01 .40 |
 | 40 Backup | 10.10.40.0/24 | VRRP .1 | backup01 .10 |
 | 50 Users | 10.10.50.0/24 | VRRP .1 | pc-01 .101, pc-02 .102 |
@@ -498,6 +501,12 @@ Two views of the same design:
   ACL `USERS-IN` so users only reach DNS / intranet / app (documented on the cores; cEOS-lab does not
   enforce SVI ACLs in software, so `db01` also runs a host firewall that only accepts MariaDB from
   the app servers and the DMZ — defense in depth).
+- **Database high availability** — db01 (primary, rack B) replicates live to db02 (replica, rack A) with MariaDB
+  GTID replication. keepalived (VRRP group 35) on both shares the database virtual IP `10.10.20.35`
+  (`db.dc.lab`) and checks MariaDB every second. If MariaDB or the whole server fails, db02 takes the address
+  and `db-promote.sh` makes it writable — no client change. The DMZ firewall rule only allows the virtual IP.
+  Measured with `scripts/db-failover.sh` (a write every 0.2 s): **MariaDB crash ≈ 2.3 s**, **server offline ≈ 3.8 s**,
+  no acknowledged write lost. `restore` rebuilds the failed node as the new replica (no automatic failback).
 - **SAN** — `storage01` is a container running **TrueNAS SCALE 25.10** as a KVM virtual machine
   (`scripts/init-truenas.sh`). Its SAN NIC is bridged onto the container's `eth1` cable to `storage-sw`, so TrueNAS
   owns `10.10.30.10`; a second NIC (QEMU user network) carries the web UI / API. `truenas-setup.py` configures it
@@ -532,7 +541,7 @@ Two views of the same design:
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 30 nodes, 34 links, management network `dc-oob` |
+| `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, management network `dc-oob` |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
 | `.clab-icons/` | Custom TopoViewer icons |
 | `configs/ceos/` | Arista startup configs — cores (L3, VRRP, MSTP root, OSPF), ToRs (L2) |
@@ -544,6 +553,8 @@ Two views of the same design:
 | `scripts/init-truenas.sh` | Boot script for storage01: bridges the SAN cable, starts the TrueNAS VM (QEMU/KVM) |
 | `scripts/truenas-setup.py` | Configures TrueNAS (SAN IP, ZFS pool, zvols, iSCSI targets + ACL) via its API |
 | `scripts/tests.sh` | 20 functional checks · `failover` demo |
+| `scripts/db-failover.sh` | Database failover test: status · crash · server · restore |
+| `scripts/db-promote.sh` | keepalived hook: makes the node that takes the DB virtual IP a writable primary |
 | `scripts/zabbix-add-hosts.py` | Registers all devices in Zabbix through its API |
 | `deploy.sh` | `containerlab deploy` + watcher that fixes cEOS rescue mode |
 | `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host` / `dc-truenas`, pulls Zabbix images |
@@ -583,6 +594,7 @@ Two views of the same design:
 | Hosts can't reach the Internet | Check `docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"` has a default route |
 | noc-sw / user-sw no traffic for ~30 s | Spanning tree converging with the Linux bridges — wait |
 | Zabbix page not loading | Wait 1–2 min after deploy (database initialisation) |
+| `db-failover.sh` says "not replicating" | A previous test left a node failed: `./scripts/db-failover.sh restore` (or redeploy) |
 
 **TrueNAS / storage**
 
@@ -623,4 +635,4 @@ Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM, cEOS 4.33.10M): VR
 OSPF (cores + firewall), ISP failover, NAT / port-forwards, firewall policy, DNS, MariaDB from the DMZ,
 iSCSI on TrueNAS SCALE 25.10 with per-server ACL, storage isolation, syslog — **20/20 tests passing**.
 
-Measured failover: ISP ≈ 0.2 s · VRRP gateway ≈ 2.8 s.
+Measured failover: ISP ≈ 0.2 s · VRRP gateway ≈ 2.8 s · database (MariaDB crash) ≈ 2.3 s · database server offline ≈ 3.8 s.

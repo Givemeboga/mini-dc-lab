@@ -20,16 +20,18 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 30 nodes, 34 links, mgmt network `dc-oob` 10.10.10.0/24 |
+| `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
 | `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP, MSTP root, OSPF), tor-01/02 (L2) |
 | `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2 and fw-01 (OSPF, static defaults) |
 | `configs/nft/*.nft` | nftables: fw-01 policy, edge NAT/port-forward, ISP NAT, db01 host firewall |
 | `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft) |
 | `scripts/init-bridge.sh` | exec for Linux-bridge "switches" (`stp` arg for dual-homed ones) |
-| `scripts/init-host.sh` | exec for every server/PC; role chosen by hostname (IPs, nginx, BIND, MariaDB, rsyslog) |
+| `scripts/init-host.sh` | exec for every server/PC; role chosen by hostname (IPs, nginx, BIND, MariaDB primary db01 / replica db02 + keepalived, rsyslog) |
 | `scripts/init-truenas.sh` | exec for storage01: bridges eth1 (SAN) to the VM's tap0, creates qcow2 disks, starts QEMU/KVM + noVNC |
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
+| `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
+| `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
 | `scripts/tests.sh` | 20 functional checks; `tests.sh failover` = ISP + VRRP failover demo |
 | `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin/zabbix) |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
@@ -41,6 +43,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
 ./scripts/tests.sh                                   # expect 20 passed (iSCSI needs TrueNAS booted: 2–4 min)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password
+./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈2.3 s, server offline ≈3.8 s
 ./scripts/tests.sh failover                          # ISP ≈0.2 s, VRRP ≈2.8 s measured
 containerlab destroy -t mini-dc.clab.yml --cleanup   # stop
 docker exec clab-mini-dc-core-01 Cli -p 15 -c "show vrrp brief"
@@ -73,7 +76,14 @@ docker exec -it clab-mini-dc-fw-01 vtysh
   `chmod +x` the script and check `git ls-files -s` shows 100755 before committing.
 - Commands passed through `wsl.exe -- bash -c '...'` get `$var` expanded by the outer shell → put anything
   with `$`, awk or loops in a script file and run that.
-- The Debian mirror (Fastly) is ~30 KB/s from here; Ubuntu's mirror is ~2 MB/s → base images on `ubuntu:24.04`.
+- Mirror speed varies: Debian's (Fastly) was once ~30 KB/s, later 5 MB/s; a build where apt finds *no* packages
+  is a transient network failure → just rebuild. dc-truenas is on `ubuntu:24.04`, dc-host on `debian:bookworm-slim`.
+- **DB HA**: VIP 10.10.20.35 (keepalived VRRP 35, nopreempt, chk = `mariadb-admin ping` every 1 s). The DMZ may
+  only reach the VIP (fw-01 `DB01` define), never db01/db02 directly. `skip_name_resolve` is required: without it
+  each login waits for a reverse-DNS lookup and 1 s client timeouts fail.
+- `pkill -f <name>` inside `sh -c '...'` matches the sh itself and kills it → use `pkill -x` (process name).
+- Containers' PID 1 is `sleep infinity`: killed daemons stay zombies, and a stale `/run/mysqld/mysqld.pid` makes
+  mysqld_safe refuse to start ("process already exists") → remove pid file + socket before restarting MariaDB.
 - TrueNAS 25.10: REST API is deprecated (removed in 26) → use JSON-RPC 2.0 over `wss://host/api/current`,
   login with `auth.login_ex` (PASSWORD_PLAIN). Configuring one NIC stops DHCP on unconfigured ones, so the
   management NIC (QEMU user net, MAC 52:54:00:10:01:07) must be set to DHCP in the same change, then
@@ -85,7 +95,8 @@ docker exec -it clab-mini-dc-fw-01 vtysh
 
 pfSense → FRR+nftables · HSRP → VRRP · Rapid-PVST → MSTP · MGMT VLAN 10 → clab OOB network ·
 Zabbix on OOB network · storage switch cabled to servers' storage NICs · AD01 = IP/DNS only (no Samba) ·
-STORAGE01 = TrueNAS SCALE VM (required by the professor) instead of a container iSCSI target.
+STORAGE01 = TrueNAS SCALE VM (required by the professor) instead of a container iSCSI target ·
+added DB02 + keepalived virtual IP (database high availability).
 
 ## Possible next work
 

@@ -15,7 +15,7 @@
     },
     {
       "id": "t-sub",
-      "text": "30 nodes · 34 links · cEOS · FRR · nftables · Zabbix · 20/20 tests",
+      "text": "31 nodes · 35 links · cEOS · FRR · nftables · Zabbix · 20/20 tests",
       "position": {
         "x": 415.58214057039163,
         "y": -504.1359249630083
@@ -160,7 +160,7 @@
     },
     {
       "id": "t-oob",
-      "text": "No cables by design: OOB only (eth0 of all 30 nodes). Zabbix polls everything from here.",
+      "text": "No cables by design: OOB only (eth0 of all 31 nodes). Zabbix polls everything from here.",
       "position": {
         "x": 1747,
         "y": 236

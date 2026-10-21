@@ -25,6 +25,7 @@
     .iscsi  { stroke: #f59e0b; stroke-width: 2; fill: none; }
     .fiber  { stroke: #0f9d8a; stroke-width: 2; fill: none; stroke-dasharray: 7 4; }
     .power  { stroke: #d99a1e; stroke-width: 2; fill: none; stroke-dasharray: 5 4; }
+    .repl   { stroke: #7c3aed; stroke-width: 2; fill: none; stroke-dasharray: 3 3; }
   </style>
 
   <defs>
@@ -90,7 +91,7 @@
 
   <!-- ============================================================ HEADER -->
   <text x="30" y="50" class="title">RAM+ Data Center — Network &amp; Building Architecture</text>
-  <text x="31" y="74" class="sub">Containerlab lab · 30 nodes · 34 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 20/20 tests</text>
+  <text x="31" y="74" class="sub">Containerlab lab · 31 nodes · 35 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 20/20 tests</text>
 
   <!-- Legend (top right) -->
   <g transform="translate(1418,30)">
@@ -284,9 +285,13 @@
   <path d="M607 634 H898" class="lacp"/>
   <text x="752" y="651" text-anchor="middle" class="lk h" fill="#e5484d">LACP Po1 2×10G</text>
   <!-- access -->
-  <path d="M565 641 L480 728" class="access"/>
-  <path d="M575 641 V728" class="access"/>
-  <path d="M585 641 L670 728" class="access"/>
+  <path d="M563 641 L448 728" class="access"/>
+  <path d="M571 641 L534 728" class="access"/>
+  <path d="M579 641 L620 728" class="access"/>
+  <path d="M587 641 L706 728" class="access"/>
+  <!-- DB replication + keepalived VIP db01 <-> db02 -->
+  <path d="M720 745 H838" class="repl"/>
+  <text x="779" y="739" text-anchor="middle" class="lk h" fill="#7c3aed">replication</text>
   <path d="M920 641 L852 728" class="access"/>
   <path d="M932 641 L948 728" class="access"/>
   <path d="M944 641 L1062 728" class="access"/>
@@ -344,18 +349,23 @@
   <use href="#l2" x="543" y="619" width="64" height="22"/>
   <text x="535" y="628" text-anchor="end" class="n h">TOR-01</text>
   <text x="535" y="640" text-anchor="end" class="r h">cEOS L2 · .21</text>
-  <use href="#server" x="466" y="728" width="28" height="44"/>
-  <text x="480" y="788" text-anchor="middle" class="n">WEB01</text>
-  <text x="480" y="800" text-anchor="middle" class="r">nginx intranet</text>
-  <text x="480" y="812" text-anchor="middle" class="ip">10.10.20.10</text>
-  <use href="#server" x="561" y="728" width="28" height="44"/>
-  <text x="575" y="788" text-anchor="middle" class="n">APP01</text>
-  <text x="575" y="800" text-anchor="middle" class="r">Python API :8080</text>
-  <text x="575" y="812" text-anchor="middle" class="ip">10.10.20.20</text>
-  <use href="#server" x="656" y="728" width="28" height="44"/>
-  <text x="670" y="788" text-anchor="middle" class="n">DNS01</text>
-  <text x="670" y="800" text-anchor="middle" class="r">BIND9 · dc.lab</text>
-  <text x="670" y="812" text-anchor="middle" class="ip">10.10.20.40</text>
+  <use href="#server" x="434" y="728" width="28" height="44"/>
+  <text x="448" y="788" text-anchor="middle" class="n">WEB01</text>
+  <text x="448" y="800" text-anchor="middle" class="r">nginx</text>
+  <text x="448" y="812" text-anchor="middle" class="ip">10.10.20.10</text>
+  <use href="#server" x="520" y="728" width="28" height="44"/>
+  <text x="534" y="788" text-anchor="middle" class="n">APP01</text>
+  <text x="534" y="800" text-anchor="middle" class="r">API :8080</text>
+  <text x="534" y="812" text-anchor="middle" class="ip">10.10.20.20</text>
+  <use href="#server" x="606" y="728" width="28" height="44"/>
+  <text x="620" y="788" text-anchor="middle" class="n">DNS01</text>
+  <text x="620" y="800" text-anchor="middle" class="r">BIND9</text>
+  <text x="620" y="812" text-anchor="middle" class="ip">10.10.20.40</text>
+  <use href="#server" x="692" y="728" width="28" height="44"/>
+  <text x="706" y="788" text-anchor="middle" class="n">DB02</text>
+  <text x="706" y="800" text-anchor="middle" class="r">MariaDB replica</text>
+  <text x="706" y="812" text-anchor="middle" class="ip">10.10.20.31</text>
+  <text x="728" y="852" text-anchor="end" class="lk" fill="#7c3aed">DB VIP 10.10.20.35</text>
 
   <!-- Rack B -->
   <use href="#l2" x="898" y="619" width="64" height="22"/>
@@ -363,7 +373,7 @@
   <text x="968" y="640" class="r h">cEOS L2 · .22</text>
   <use href="#server" x="838" y="728" width="28" height="44"/>
   <text x="852" y="788" text-anchor="middle" class="n">DB01</text>
-  <text x="852" y="800" text-anchor="middle" class="r">MariaDB + host nft</text>
+  <text x="852" y="800" text-anchor="middle" class="r">MariaDB primary</text>
   <text x="852" y="812" text-anchor="middle" class="ip">10.10.20.30</text>
   <text x="852" y="824" text-anchor="middle" class="san">SAN .30.30</text>
   <use href="#server" x="934" y="728" width="28" height="44"/>
@@ -438,7 +448,7 @@
   <text x="1550" y="650" text-anchor="middle" class="r">PostgreSQL 16</text>
   <text x="1550" y="662" text-anchor="middle" class="ip">10.10.10.52</text>
   <rect x="1200" y="678" width="420" height="24" rx="12" fill="#e2e8f0"/>
-  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 30 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
+  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 31 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
 
   <!-- ============================================================ LINK TYPES -->
   <rect x="1170" y="750" width="480" height="168" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
@@ -453,6 +463,7 @@
     <path d="M1420 824 H1454" class="dmz"/><text x="1464" y="828">DMZ</text>
     <path d="M1420 848 H1454" class="iscsi"/><text x="1464" y="852">iSCSI storage</text>
     <path d="M1420 872 H1454" class="fiber"/><text x="1464" y="876">Inter-building fiber</text>
+    <path d="M1420 896 H1454" class="repl"/><text x="1464" y="900">DB replication</text>
   </g>
 
   <!-- ============================================================ KEY FEATURES -->
@@ -470,7 +481,7 @@
     <use href="#check" x="1420" y="1024" width="13" height="13"/><text x="1439" y="1035">DB host firewall (defense in depth)</text>
     <use href="#check" x="1420" y="1048" width="13" height="13"/><text x="1439" y="1059">OOB management · VRF MGMT</text>
     <use href="#check" x="1420" y="1072" width="13" height="13"/><text x="1439" y="1083">Zabbix SNMP + ICMP · syslog</text>
-    <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">20/20 automated tests</text>
+    <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">MariaDB HA · failover ≈2.3 s</text>
   </g>
   <line x1="1188" y1="1124" x2="1632" y2="1124" stroke="#e2e8f0"/>
   <text x="1188" y="1142" class="ps">Changed from the original design: pfSense → FRR + nftables · HSRP → VRRP ·</text>

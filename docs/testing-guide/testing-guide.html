@@ -61,7 +61,7 @@
   <h1>Testing guide</h1>
   <p>Verify and explain every layer of the data center — Internet, firewall, core, racks, DMZ, TrueNAS SAN and NOC</p>
   <div class="meta">
-    <span><b>30</b> nodes · <b>34</b> links</span>
+    <span><b>31</b> nodes · <b>35</b> links</span>
     <span>Automated checks: <b>20 / 20 passing</b></span>
     <span>Storage: <b>TrueNAS SCALE 25.10</b></span>
     <span>All commands verified on the live lab · <b>21 Oct 2026</b></span>
@@ -92,7 +92,7 @@ TrueNAS (storage01) to boot before testing the SAN. TrueNAS console: <code>http:
   <div class="chip"><b>9 · Security</b>Pivot, DB, SAN blocked</div>
   <div class="chip"><b>10 · SAN</b>TrueNAS iSCSI + ACL</div>
   <div class="chip"><b>11 · NOC</b>Syslog, SNMP, Zabbix</div>
-  <div class="chip"><b>12–14</b>20 checks · failover · checklist</div>
+  <div class="chip"><b>12–14</b>20 checks · failover (network + DB) · checklist</div>
 </div>
 
 <!-- ================================================================== 1 -->
@@ -159,7 +159,7 @@ nft delete chain inet filter trace_in <span class="c"># clean up</span></pre>
 <tr><td class="cmd">docker exec clab-mini-dc-web01 curl -s -o /dev/null -w "%{http_code}\n" https://example.com</td><td><b>Inside → anywhere</b> → <code>200</code>, new entry in <code>conntrack -E</code></td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-isp-a curl -s http://10.0.0.1</td><td><b>Internet → DMZ web :80</b> (via the edge port-forward) → handle 19 counter +1</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-edge-r1 ping -c2 10.10.60.10</td><td><b>Outside → ping DMZ</b> → replies, ICMP visible on <code>tcpdump -ni eth5</code></td></tr>
-<tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 nc -zv -w3 10.10.20.30 3306</td><td><b>DMZ → MariaDB :3306</b> → <code>open</code>, handle 24 counter +1</td></tr>
+<tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 nc -zv -w3 10.10.20.35 3306</td><td><b>DMZ → MariaDB :3306</b> (database virtual IP) → <code>open</code>, handle 24 counter +1</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 dig +short @10.10.20.40 db01.dc.lab</td><td><b>DMZ → DNS on dns01</b> → answer <code>10.10.20.30</code></td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 curl -s -o /dev/null -w "%{http_code}\n" https://example.com</td><td><b>DMZ → Internet 443</b> (updates) → <code>200</code></td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 dig +short @8.8.8.8 example.com</td><td><b>DMZ → Internet DNS</b> → an IP address</td></tr>
@@ -171,7 +171,7 @@ nft delete chain inet filter trace_in <span class="c"># clean up</span></pre>
 <table><thead><tr><th>Command</th><th>Rule tested → why it is blocked</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 curl -s -m3 http://10.10.20.10 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — a compromised DMZ server cannot reach the intranet</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 ping -c2 -W1 10.10.20.10 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — the DMZ cannot even scan the inside with ping</td></tr>
-<tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 nc -z -w3 10.10.20.30 22 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — DMZ → db01 is allowed on 3306 only, not SSH</td></tr>
+<tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 nc -z -w3 10.10.20.35 22 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — DMZ → database allowed on 3306 only, not SSH</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-edge-r1 curl -s -m3 http://10.10.20.10 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — the outside can never open connections to the inside</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-web-dmz01 nc -z -w3 1.1.1.1 22 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — the DMZ may only use web and DNS on the Internet</td></tr>
 <tr><td class="cmd">docker exec clab-mini-dc-edge-r1 nc -z -w3 10.0.1.2 22 || echo BLOCKED</td><td><span class="blocked">BLOCKED</span> — no SSH to the firewall from outside (input chain)</td></tr>
@@ -237,11 +237,11 @@ layer 2 through the ToRs; traffic to the Internet goes core → firewall → edg
 <h2>8. DMZ – public website</h2>
 <div class="how"><b class="t">How it works.</b> The public web servers live in the DMZ (VLAN 60), isolated from the internal
 network. The Internet reaches them through the edge port-forwards — web-dmz01 through ISP A, web-dmz02 through ISP B.
-The only internal resource they may use is the shop database on db01 (TCP 3306).</div>
+The only internal resource they may use is the shop database, through its virtual IP <code>10.10.20.35</code> (TCP 3306).</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec $P-isp-a curl -s http://10.0.0.1</td><td><span class="exp"><code>web-dmz01</code> page</span> <span class="why">→ "from the Internet" via ISP A</span></td></tr>
 <tr><td class="cmd">docker exec $P-isp-b curl -s http://10.0.0.5</td><td><span class="exp"><code>web-dmz02</code> page</span> <span class="why">→ the second site via ISP B</span></td></tr>
-<tr><td class="cmd">docker exec $P-web-dmz01 mariadb -h 10.10.20.30 -u web -pWebPass2026 shop -e "select * from products"</td><td><span class="exp">product table</span> <span class="why">→ the one allowed DMZ → inside flow works</span></td></tr>
+<tr><td class="cmd">docker exec $P-web-dmz01 mariadb -h 10.10.20.35 -u web -pWebPass2026 shop -e "select * from products"</td><td><span class="exp">product table</span> <span class="why">→ the one allowed DMZ → inside flow works</span></td></tr>
 </tbody></table>
 
 <!-- ================================================================== 9 -->
@@ -316,7 +316,7 @@ OSPF neighbors, default route).</div>
 <tr><td class="n">9</td><td>Internet → edge-r1:80 → web-dmz01 <span class="ok">pass</span></td><td>from isp-a → port-forward + firewall rule to the DMZ</td></tr>
 <tr><td class="n">10</td><td>Internet → edge-r2:80 → web-dmz02 <span class="ok">pass</span></td><td>from isp-b → second ISP publishes the second site</td></tr>
 <tr><td class="n">11</td><td>Internet cannot reach internal IPs <span class="blocked">block</span></td><td>isp-a → 10.10.20.10 → private addresses are not reachable from outside</td></tr>
-<tr><td class="n">12</td><td>DMZ web → MariaDB <span class="ok">pass</span></td><td>SQL <code>select 1</code> from web-dmz01 → the one allowed DMZ flow</td></tr>
+<tr><td class="n">12</td><td>DMZ web → MariaDB <span class="ok">pass</span></td><td>SQL <code>select 1</code> to the DB virtual IP .35 → the one allowed DMZ flow</td></tr>
 <tr><td class="n">13</td><td>DMZ web → web01:80 <span class="blocked">block</span></td><td>HTTP to the intranet → no pivot from the DMZ</td></tr>
 <tr><td class="n">14</td><td>DMZ web → storage01 <span class="blocked">block</span></td><td>ping 10.10.30.10 → the DMZ cannot touch the SAN</td></tr>
 <tr><td class="n">15</td><td>db01 sees its iSCSI target <span class="ok">pass</span></td><td>iSCSI discovery lists <code>storage01.db</code> → TrueNAS portal up</td></tr>
@@ -352,6 +352,28 @@ docker exec clab-mini-dc-edge-r1 ip link set eth1 up</pre>
 </div>
 <p>Measured results: ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway failover (VRRP) ≈ <b>2.8 s</b>.</p>
 
+<h3>Database failover (MariaDB high availability)</h3>
+<div class="how keep"><b class="t">How it works.</b> db01 (primary, rack B) replicates every change live to <b>db02</b> (replica,
+rack A) with MariaDB GTID replication. Both run <b>keepalived</b> (VRRP group 35), which owns the database virtual IP
+<code>10.10.20.35</code> (<code>db.dc.lab</code>) — the address all clients use — and checks MariaDB every second
+(<code>mariadb-admin ping</code>). If MariaDB on the primary dies, its health check fails and it gives up the address at once;
+if the whole server dies, db02 notices that the VRRP heartbeats stopped (3 × 1 s). db02 then takes the virtual IP and
+<code>db-promote.sh</code> stops replication and makes it writable. There is no automatic failback (<code>nopreempt</code>):
+<code>restore</code> rebuilds the failed node as the new replica.</div>
+<table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
+<tr><td class="cmd">./scripts/db-failover.sh status</td><td><span class="exp">VIP owned by db01 · db02 <code>Slave_IO/SQL_Running: Yes</code>, 0 s behind</span> <span class="why">→ redundant and in sync</span></td></tr>
+<tr><td class="cmd">./scripts/db-failover.sh</td><td><span class="exp">MariaDB on the primary crashes → unavailable ≈ <b>2.3 s</b></span> <span class="why">→ db02 promoted, last acknowledged write present</span></td></tr>
+<tr><td class="cmd">./scripts/db-failover.sh restore</td><td><span class="exp">the failed node becomes the replica of the new primary</span> <span class="why">→ redundancy is back</span></td></tr>
+<tr><td class="cmd">./scripts/db-failover.sh server</td><td><span class="exp">the primary server goes offline → unavailable ≈ <b>3.8 s</b></span> <span class="why">→ detected by missing VRRP heartbeats</span></td></tr>
+</tbody></table>
+<p>How the time is measured: app01 writes one row through <code>db.dc.lab</code> every 0.2 s (new connection each time, 1 s
+timeout). The outage runs from the failure to the first successful write on the new primary, so it includes the promotion
+— not just the address move. Measured on the lab (21 Oct 2026):</p>
+<table><thead><tr><th>Scenario</th><th>Database unavailable</th><th>Failed writes</th><th>Data lost</th></tr></thead><tbody>
+<tr><td>MariaDB crash on db01 → db02 takes over</td><td><b>2.3 s</b></td><td>7 of 110</td><td class="ok">none</td></tr>
+<tr><td>db02 server offline → db01 takes over</td><td><b>3.8 s</b></td><td>3 of 94</td><td class="ok">none</td></tr>
+</tbody></table>
+
 <!-- ================================================================== 14 -->
 <h2>14. Validation checklist</h2>
 <p>Results of this guide on the reference lab (21 Oct 2026). Tick each line during a demo or after a change.</p>
@@ -365,6 +387,7 @@ docker exec clab-mini-dc-edge-r1 ip link set eth1 up</pre>
 <tr><td>Security</td><td>pivot, users → DB and routed SAN are all blocked</td><td class="ok">PASS</td></tr>
 <tr><td>SAN (TrueNAS)</td><td>own LUN visible and readable · other LUN denied · web UI reachable</td><td class="ok">PASS</td></tr>
 <tr><td>NOC</td><td>syslog files per device · NOC → firewall · SNMP answers</td><td class="ok">PASS</td></tr>
+<tr><td>Database HA</td><td>db02 replicating · crash failover ≈ 2.3 s · server failover ≈ 3.8 s · no data lost · restore OK</td><td class="ok">PASS</td></tr>
 <tr><td>Automated</td><td><code>./scripts/tests.sh</code> → 20 passed, 0 failed</td><td class="ok">PASS</td></tr>
 </tbody></table>
 
