@@ -81,6 +81,9 @@ docker exec -it clab-mini-dc-fw-01 vtysh
 - **DB HA**: VIP 10.10.20.35 (keepalived VRRP 35, nopreempt, chk = `mariadb-admin ping` every 1 s). The DMZ may
   only reach the VIP (fw-01 `DB01` define), never db01/db02 directly. `skip_name_resolve` is required: without it
   each login waits for a reverse-DNS lookup and 1 s client timeouts fail.
+- **Host MTU must be 1500**: clab veths default to 9500 but cEOS ports carry max 9214 bytes, so full-size TCP
+  segments crossing the switches are silently dropped — pings and small queries work, bulk transfers hang forever
+  (seen as `db-failover.sh restore` stuck on mariadb-dump). `init-host.sh` `addr()` sets mtu 1500.
 - `pkill -f <name>` inside `sh -c '...'` matches the sh itself and kills it → use `pkill -x` (process name).
 - Containers' PID 1 is `sleep infinity`: killed daemons stay zombies, and a stale `/run/mysqld/mysqld.pid` makes
   mysqld_safe refuse to start ("process already exists") → remove pid file + socket before restarting MariaDB.

@@ -4,7 +4,9 @@
 H=$(hostname)
 log() { echo "[init-host] $H: $*"; }
 
-addr()  { ip link set "$1" up; ip addr add "$2" dev "$1" 2>/dev/null || true; }
+# MTU 1500: clab veths default to 9500 but the cEOS switch ports carry max 9214 bytes, so full-size
+# 9500 TCP segments crossing the switches are silently dropped (bulk transfers hang).
+addr()  { ip link set "$1" mtu 1500 up; ip addr add "$2" dev "$1" 2>/dev/null || true; }
 gw()    { ip route replace default via "$1"; }          # data-plane gateway (VRRP VIP)
 no_gw() { ip route del default 2>/dev/null || true; }    # isolated segment, no routing
 use_dc_dns() { printf 'search dc.lab\nnameserver 10.10.20.40\nnameserver 127.0.0.11\n' > /etc/resolv.conf; }
