@@ -36,6 +36,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin/zabbix) |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |
+| `README.md` + `docs/*.md` | README = short landing page; `docs/setup.md` (install), `operations.md` (daily use), `architecture.md`, `troubleshooting.md`, `contributing.md` (workflow + full file layout) — update the right one, keep README short |
 
 ## Commands
 
