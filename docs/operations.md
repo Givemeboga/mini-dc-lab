@@ -35,6 +35,7 @@ virtual disks, so nothing has to be reinstalled.
 | `./deploy.sh` | Start the lab (5–8 min) |
 | `./scripts/tests.sh` | 20 functional checks |
 | `./scripts/tests.sh failover` | ISP + VRRP gateway failover demo |
+| `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
 | `./scripts/db-failover.sh status` | Database: who owns the virtual IP, is the standby in sync |
 | `./scripts/db-failover.sh` | Crash MariaDB on the primary and measure the takeover |
 | `./scripts/db-failover.sh server` | Same, but the whole primary server goes offline |
@@ -70,6 +71,14 @@ docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"
 
 Cuts ISP A, then shuts the VRRP master's VLAN 20 interface, while web01 pings 5 times per second; both are restored
 automatically. Measured: **ISP failover ≈ 0.2 s**, **gateway (VRRP) failover ≈ 2.8 s**.
+
+### Core load sharing — `./scripts/tests.sh loadshare`
+
+The two cores share the routing: core-01 is the gateway for servers and backup (VLAN 20/40), core-02 for users and
+the NOC (VLAN 50/70), each backing up the other. The test shows the VRRP masters on both cores, then sends 200 pings
+from web01 and from pc-01 and counts the packets each core received (expected: web01 → core-01 only,
+pc-01 → core-02 only). Finally it shuts core-02's VLAN 50 interface while pc-01 pings its gateway: core-01 takes
+over (measured ≈ 2.4 s) and core-02 takes the users back when it returns.
 
 ### Database — `./scripts/db-failover.sh`
 

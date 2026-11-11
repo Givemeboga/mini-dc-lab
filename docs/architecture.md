@@ -67,8 +67,10 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward to the DMZ
 - **Firewall** (`configs/nft/fw-01.nft`) — default drop. Inside → anywhere; Internet → DMZ web 80/443;
   DMZ → the database virtual IP `10.10.20.35:3306` and dns01:53 only; DMZ → Internet 80/443/53;
   everything else counted + logged as `FW-01 DROP`.
-- **Core** — VRRP (HSRP equivalent) with core-01 master, LACP Port-Channel between cores and between
-  ToRs, MSTP with core-01 as root, OSPF to the firewall + a transit VLAN 99 between cores as backup path,
+- **Core** — VRRP (HSRP equivalent) with **load sharing**: core-01 is master for VLAN 20/40 (servers, backup) and
+  core-02 for VLAN 50/70 (users, NOC); each is the backup of the other. MSTP follows the same split (instance 1 =
+  VLAN 20/40 rooted on core-01, instance 0 = VLAN 50/70 rooted on core-02), so each VLAN's frames go straight to
+  the core that routes them. LACP Port-Channel between cores and between ToRs, OSPF to the firewall + a transit VLAN 99 between cores as backup path,
   ACL `USERS-IN` so users only reach DNS / intranet / app (documented on the cores; cEOS-lab does not
   enforce SVI ACLs in software, so the database servers also run a host firewall that only accepts MariaDB from
   the server VLAN and the DMZ — defense in depth). Gateway failover measured ≈ 2.8 s.

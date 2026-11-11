@@ -2,6 +2,7 @@
 # Demo / verification script. Run from the lab folder after deploy:
 #   ./scripts/tests.sh            -> all functional tests
 #   ./scripts/tests.sh failover   -> ISP + core failover demo
+#   ./scripts/tests.sh loadshare  -> core load sharing demo (which core routes which VLAN)
 P=clab-mini-dc
 x()   { timeout 15 docker exec "$P-$1" "${@:2}"; }
 eos() { docker exec "$P-$1" Cli -p 15 -c "$2"; }
@@ -81,4 +82,44 @@ no shutdown" >/dev/null; echo "   core-01 Vlan20 restored (preempts back to MAST
   echo "   (a few lost pings = the failover time, then traffic continues through core-02)"
 }
 
-case "$1" in failover) failover ;; *) functional ;; esac
+# Unicast packets a core received on some ports (cEOS does not answer traceroute, so we count packets)
+pk() { eos "$1" "show interfaces $2 counters incoming" | awk 'NR>1 {s+=$3} END {print s+0}'; }
+# Send 200 pings from a host to fw-01 and show which core received them on the given access-side ports
+who_routes() {  # who_routes host ports label
+  local a1 a2 b1 b2
+  a1=$(pk core-01 "$2"); a2=$(pk core-02 "$2")
+  x "$1" ping -q -c 200 -i 0.01 -W1 10.10.99.1 >/dev/null
+  sleep 6   # cEOS refreshes interface counters every few seconds
+  b1=$(pk core-01 "$2"); b2=$(pk core-02 "$2")
+  printf "   %-8s (%s): core-01 received %4d packets, core-02 received %4d\n" "$1" "$3" $((b1-a1)) $((b2-a2))
+}
+
+loadshare() {
+  echo "== VRRP: each core is master for half of the VLANs"
+  echo "-- core-01"; eos core-01 "show vrrp brief"
+  echo "-- core-02"; eos core-02 "show vrrp brief"
+
+  echo; echo "== Spanning tree roots (instance 0 = VLAN 50/70, instance 1 = VLAN 20/40)"
+  eos core-01 "show spanning-tree root"
+
+  echo; echo "== Which core carries the traffic (200 pings to fw-01 from each host)"
+  who_routes web01 Ethernet3-4 "servers VLAN 20"
+  who_routes pc-01 Ethernet6-7 "users VLAN 50"
+
+  echo; echo "== Failover: shut CORE-02 Vlan50 (master for users) while pc-01 pings its gateway"
+  docker exec $P-pc-01 sh -c 'ping -i 0.2 -c 75 -W 1 10.10.50.1 > /tmp/ls.log 2>&1' &
+  sleep 3
+  eos core-02 "configure
+interface Vlan50
+shutdown" >/dev/null; echo "   core-02 Vlan50 shut at $(date +%T)"
+  sleep 6
+  eos core-01 "show vrrp brief" | grep -E "Interface|Vl50" | sed 's/^/   core-01: /'
+  eos core-02 "configure
+interface Vlan50
+no shutdown" >/dev/null; echo "   core-02 Vlan50 restored (preempts back to MASTER)"
+  wait
+  echo "   pc-01 ping summary: $(x pc-01 grep 'packet loss' /tmp/ls.log)"
+  echo "   (a few lost pings = the failover time; core-01 routed the users until core-02 came back)"
+}
+
+case "$1" in failover) failover ;; loadshare) loadshare ;; *) functional ;; esac

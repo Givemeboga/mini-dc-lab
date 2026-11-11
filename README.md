@@ -33,7 +33,7 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 | **Scale** | 31 containers · 35 links · 3 buildings · out-of-band management network `10.10.10.0/24` |
 | **Internet edge** | 2 ISPs (NAT to the real Internet) · 2 FRR edge routers with NAT and port-forwards |
 | **Security** | FW-01 = FRR (OSPF) + nftables, default-drop policy · DMZ (VLAN 60) with 2 public web servers |
-| **Core / access** | 2 Arista cEOS cores (VRRP, LACP, MSTP root, OSPF) · 2 cEOS top-of-rack switches, dual-homed |
+| **Core / access** | 2 Arista cEOS cores (VRRP load sharing, LACP, MSTP, OSPF) · 2 cEOS top-of-rack switches, dual-homed |
 | **Servers** | nginx intranet, Python API, BIND9 DNS, AD (IP/DNS), backup · **MariaDB primary + replica** behind a keepalived virtual IP |
 | **Storage** | **TrueNAS SCALE 25.10** (KVM VM inside the lab): ZFS mirror, one iSCSI LUN per server with ACL, isolated SAN |
 | **Operations** | NOC with rsyslog from every switch · Zabbix 7 (SNMP + ICMP) on the OOB network |

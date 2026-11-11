@@ -326,7 +326,7 @@
     },
     {
       "id": "nd-core-01",
-      "text": "VRRP master · MSTP root",
+      "text": "Gateway VLAN 20/40 · MST1 root",
       "position": {
         "x": 373,
         "y": 586
@@ -339,7 +339,7 @@
     },
     {
       "id": "nd-core-02",
-      "text": "VRRP backup",
+      "text": "Gateway VLAN 50/70 · MST0 root",
       "position": {
         "x": 1011,
         "y": 586

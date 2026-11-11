@@ -22,7 +22,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 |---|---|
 | `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
-| `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP, MSTP root, OSPF), tor-01/02 (L2) |
+| `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP load sharing: core-01 VLAN 20/40, core-02 VLAN 50/70, MSTP, OSPF), tor-01/02 (L2) |
 | `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2 and fw-01 (OSPF, static defaults) |
 | `configs/nft/*.nft` | nftables: fw-01 policy, edge NAT/port-forward, ISP NAT, db01 host firewall |
 | `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft) |
@@ -32,7 +32,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
 | `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
 | `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
-| `scripts/tests.sh` | 20 functional checks; `tests.sh failover` = ISP + VRRP failover demo |
+| `scripts/tests.sh` | 20 functional checks; `tests.sh failover` = ISP + VRRP failover demo; `tests.sh loadshare` = core load sharing |
 | `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin/zabbix) |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |

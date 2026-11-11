@@ -325,13 +325,13 @@
 
   <use href="#core" x="568" y="473" width="44" height="44"/>
   <text x="545" y="488" text-anchor="end" class="n h">CORE-01</text>
-  <text x="545" y="500" text-anchor="end" class="r h">cEOS L3 · VRRP master</text>
-  <text x="545" y="512" text-anchor="end" class="ip h">MSTP root · 10.10.10.11</text>
+  <text x="545" y="500" text-anchor="end" class="r h">cEOS L3 · VRRP master VLAN 20/40</text>
+  <text x="545" y="512" text-anchor="end" class="ip h">MST1 root · 10.10.10.11</text>
 
   <use href="#core" x="828" y="473" width="44" height="44"/>
   <text x="880" y="488" class="n h">CORE-02</text>
-  <text x="880" y="500" class="r h">cEOS L3 · VRRP backup</text>
-  <text x="880" y="512" class="ip h">10.10.10.12</text>
+  <text x="880" y="500" class="r h">cEOS L3 · VRRP master VLAN 50/70</text>
+  <text x="880" y="512" class="ip h">MST0 root · 10.10.10.12</text>
 
   <use href="#l2" x="988" y="351" width="64" height="22"/>
   <text x="1058" y="360" class="n">DMZ-SW</text>

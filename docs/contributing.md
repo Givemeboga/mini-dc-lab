@@ -23,7 +23,7 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 | `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, management network `dc-oob` |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
 | `.clab-icons/` | Custom TopoViewer icons |
-| `configs/ceos/` | Arista startup configs — cores (L3, VRRP, MSTP root, OSPF), ToRs (L2) |
+| `configs/ceos/` | Arista startup configs — cores (L3, VRRP load sharing, MSTP, OSPF), ToRs (L2) |
 | `configs/frr/` | FRRouting configs for the edges, firewall and ISPs |
 | `configs/nft/` | nftables — firewall policy, edge NAT / port-forwards, ISP NAT, database host firewall |
 | `scripts/init-router.sh` | Boot script for ISPs, edges, firewall (sysctl, routes, MTU, nftables) |
