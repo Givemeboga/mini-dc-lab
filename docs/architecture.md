@@ -99,6 +99,19 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
   TrueNAS backup LUN over iSCSI (`qemu-img`). TrueNAS keeps daily ZFS snapshots of that LUN for 14 days.
   `backup.sh restore-test` proves the backups work: checksums, restore into a scratch MariaDB from the local copy
   **and** from the copy read back from TrueNAS, row counts compared with the backup-time values.
+- **Intrusion detection and prevention** (`scripts/ids.sh`, `configs/suricata/dc-lab.rules`) — Suricata on both edge
+  routers watches the WAN link, where the attacker's real address is still visible, with ~3,400 Emerging Threats Open
+  rules (scan, web server, exploit, attack response, DoS) plus the lab's own (port scan, SSH brute force, SQL injection,
+  directory traversal, attack tools). Every alert goes to both log collectors and Zabbix; a priority 1–2 alert puts the
+  source address in the edge's nftables `blocklist` for 10 minutes, dropped before the port-forward. The attacker for the
+  demo is **kali** (203.0.113.10), another customer of ISP A, with no management access and no copy of the lab folder.
+- **Encryption inside the data center** — the intranet (`https://intranet.dc.lab`) and the API
+  (`https://app.dc.lab:8443`, the Python service only listens on localhost) use certificates from the lab CA, which every
+  host trusts; MariaDB requires TLS for every network account (DMZ, app, backup, replication); the Zabbix agents only
+  accept TLS with a pre-shared key; the switches only answer SNMPv3 with SHA authentication and AES encryption.
+- **Network administrators** — switch logins go to **RADIUS** (FreeRADIUS on ad01, over the OOB network): one named
+  account (`netadmin`), every login and command session accounted and logged centrally. The local `admin` account keeps
+  a random password as break-glass, used only when RADIUS does not answer (`scripts/secure-switches.sh`, run by deploy.sh).
 - **Secrets** — passwords are not in the repository: `scripts/gen-secrets.sh` (run by `deploy.sh`) creates
   `lab.env` with random values and the certificate authority in `pki/`, both git-ignored. The DMZ servers and the
   PCs unmount the lab folder after boot, so a compromised host cannot read them.

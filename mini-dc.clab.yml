@@ -42,6 +42,13 @@ topology:
       binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/isp.conf:/etc/frr/frr.conf]
       exec: [sh /lab/scripts/init-router.sh]
 
+    kali:                            # attacker for the security demo (scripts/attack.sh): 203.0.113.10 behind ISP A
+      kind: linux
+      image: dc-kali:latest
+      group: "Internet"
+      mgmt-ipv4: 10.10.10.203
+      exec: [sh /lab/scripts/init-kali.sh]
+
     # ------------------------------------ Batiment informatique - Salle reseau (MMR)
     edge-r1:
       kind: linux
@@ -241,6 +248,7 @@ topology:
     # WAN
     - endpoints: ["isp-a:eth1", "edge-r1:eth1"]
     - endpoints: ["isp-b:eth1", "edge-r2:eth1"]
+    - endpoints: ["isp-a:eth2", "kali:eth1"]          # the attacker, another customer of ISP A
     # Edge <-> firewall
     - endpoints: ["edge-r1:eth2", "fw-01:eth1"]
     - endpoints: ["edge-r2:eth2", "fw-01:eth2"]

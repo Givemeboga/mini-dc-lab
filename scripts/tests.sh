@@ -4,10 +4,16 @@
 #   ./scripts/tests.sh failover   -> ISP, core, firewall, website, intranet and DNS failover demo
 #   ./scripts/tests.sh loadshare  -> core load sharing demo (which core routes which VLAN)
 #   ./scripts/tests.sh monitoring -> Zabbix alarms demo: cooling failure, power failure, firewall drop log
+#   ./scripts/tests.sh attack     -> security demo: attacks from kali detected by the IDS and blocked
 cd "$(dirname "$0")/.."
 P=clab-mini-dc
 [ -f lab.env ] && . ./lab.env          # passwords (scripts/gen-secrets.sh)
 WWW="--cacert /lab/pki/ca.crt --resolve www.dc.lab:443"   # + :<public IP of an edge>
+ZG="--tls-connect psk --tls-psk-identity dc-lab --tls-psk-file /tmp/dc.psk"      # zabbix_get, encrypted
+zg() { x monitor01 sh -c "echo $ZBX_PSK > /tmp/dc.psk; zabbix_get $ZG $*"; }
+zg_agents() { zg -s 10.10.10.101 -k agent.ping | grep -qx 1 && zg -s 10.10.10.40 -k dc.ospf.full | grep -qx 4; }
+zg_bms() { zg -s 10.10.10.117 -k 'bms.sensor[hall_a_temp]' | grep -Eq '^[0-9]'; }
+EAPI='{"jsonrpc":"2.0","method":"runCmds","params":{"version":1,"cmds":["show version"]},"id":1}'
 x()   { timeout 15 docker exec "$P-$1" "${@:2}"; }
 eos() { docker exec "$P-$1" Cli -p 15 -c "$2"; }
 ok=0; ko=0
@@ -33,11 +39,11 @@ functional() {
   check "web01 -> its gateway (VRRP VIP)"            pass x web01 ping -c1 -W1 10.10.20.1
   check "web01 -> db01 (same VLAN, other rack)"      pass x web01 ping -c1 -W1 10.10.20.30
   check "pc-01 -> web01 intranet (HTTP allowed)"     pass x pc-01 curl -sf -m3 http://10.10.20.10
-  check "pc-01 -> intranet.dc.lab (virtual IP)"       pass x pc-01 curl -sf -m3 http://intranet.dc.lab
-  check "pc-01 -> app.dc.lab:8080 (virtual IP)"       pass x pc-01 curl -sf -m3 http://app.dc.lab:8080/index.json
+  check "pc-01 -> https://intranet.dc.lab (virtual IP)" pass x pc-01 curl -sf -m3 https://intranet.dc.lab
+  check "pc-01 -> https://app.dc.lab:8443 (virtual IP)" pass x pc-01 curl -sf -m3 https://app.dc.lab:8443/index.json
   check "pc-01 -> db01:3306 (blocked, host firewall)" block x pc-01 nc -z -w2 10.10.20.30 3306
   check "pc-01 -> db02:3306 (blocked, host firewall)" block x pc-01 nc -z -w2 10.10.20.31 3306
-  check "backup01 -> app01:8080 (blocked, host firewall)" block x backup01 nc -z -w2 10.10.20.20 8080
+  check "backup01 -> app01:8443 (blocked, host firewall)" block x backup01 nc -z -w2 10.10.20.20 8443
   check "noc-ws -> fw-01 (routed through core)"      pass x noc-ws ping -c1 -W1 10.10.99.1
   check "web01 -> Internet (via FW, edge, ISP)"      pass x web01 curl -sf -m5 -o /dev/null https://example.com
 
@@ -78,9 +84,22 @@ functional() {
   check "firewall drops logged on both collectors"   pass x syslog01 sh -c 'grep -q "FW DROP" /var/log/remote/fw-01.log'
   check "servers' logs reach the collectors (db01)"  pass x noc-ws sh -c 'ls /var/log/remote/ | grep -q db01'
   check "web01 clock synchronised to dns01/ad01 (NTP)" pass x web01 sh -c "chronyc -c tracking | grep -q ',Normal$'"
-  check "Zabbix agents answer over OOB (web01, fw-01)" pass x monitor01 sh -c 'zabbix_get -s 10.10.10.101 -k agent.ping | grep -qx 1 && zabbix_get -s 10.10.10.40 -k dc.ospf.full | grep -qx 4'
-  check "Zabbix reads the BMS sensors (hall A)"      pass x monitor01 sh -c "zabbix_get -s 10.10.10.117 -k 'bms.sensor[hall_a_temp]' | grep -Eq '^[0-9]'"
+  check "Zabbix agents answer, encrypted (web01, fw-01)" pass zg_agents
+  check "Zabbix reads the BMS sensors (hall A)"      pass zg_bms
   check "Zabbix: no active problem"                  pass python3 scripts/zabbix-setup.py problems
+
+  echo; echo "== Security"
+  check "intranet: HTTP redirected to HTTPS"          pass x pc-01 sh -c "curl -s -o /dev/null -w '%{http_code}' -m3 http://intranet.dc.lab | grep -q 301"
+  check "MariaDB refuses the DMZ without TLS"         block x web-dmz01 mariadb --skip-ssl -h 10.10.20.35 -u web -p"$DB_WEB_PASS" shop -e 'select 1'
+  check "DMZ -> MariaDB encrypted, certificate verified" pass x web-dmz01 sh -c "mariadb --ssl-verify-server-cert --ssl-ca=/etc/ssl/certs/ca-certificates.crt -h 10.10.20.35 -u web -p'$DB_WEB_PASS' -N -e \"show status like 'Ssl_cipher'\" | grep -Eq 'Ssl_cipher\s+\S'"
+  check "replication db01 -> db02 runs over TLS"      pass x db02 sh -c "mariadb -e 'show slave status\\G' | grep -q 'Master_SSL_Allowed: Yes'"
+  check "Zabbix agent refuses unencrypted requests"  block x monitor01 sh -c "zabbix_get -s 10.10.10.101 -k agent.ping | grep -qx 1"
+  check "SNMPv3 (SHA + AES) answers"                  pass x admin-pc snmpget -v3 -l authPriv -u zabbix -a SHA -A "$SNMP_AUTH_PASS" -x AES -X "$SNMP_PRIV_PASS" -t2 -r1 10.10.10.11 1.3.6.1.2.1.1.5.0
+  check "SNMP v2c community 'dclab' refused"          block x admin-pc snmpget -v2c -c dclab -t1 -r0 10.10.10.11 1.3.6.1.2.1.1.5.0
+  check "switch login through RADIUS (netadmin)"      pass x admin-pc sh -c "curl -sk -m8 -u '$SWITCH_USER:$SWITCH_PASS' https://10.10.10.11/command-api -d '$EAPI' | grep -q modelName"
+  check "wrong switch password refused"               block x admin-pc sh -c "curl -sk -m8 -u '$SWITCH_USER:wrong' https://10.10.10.11/command-api -d '$EAPI' | grep -q modelName"
+  check "IDS running on both edges (Suricata)"        pass sh -c "docker exec $P-edge-r1 pidof suricata && docker exec $P-edge-r2 pidof suricata"
+  check "attacker (kali) has no management access"    pass x kali sh -c "ip link show eth0 | grep -q 'state DOWN'"
 
   echo; echo "Result: $ok passed, $ko failed"
 }
@@ -235,4 +254,18 @@ monitoring() {
   echo; echo "== Waiting 60 s for everything to recover..."; sleep 60; zbx
 }
 
-case "$1" in failover) failover ;; loadshare) loadshare ;; monitoring) monitoring ;; *) functional ;; esac
+attack() {
+  show() { sleep 4; ./scripts/attack.sh status; }
+  zbx() { sleep 12; echo "-- Zabbix:"; python3 scripts/zabbix-setup.py problems; }
+  ./scripts/attack.sh unblock >/dev/null
+  echo "== The attacker kali (203.0.113.10, behind ISP A) reaches the website: $(./scripts/attack.sh status | tail -1 | sed 's/.*: //')"
+  echo; ./scripts/attack.sh web; show; zbx
+  echo "-- NOC log (syslog01):"; x syslog01 sh -c 'grep -h "dc-ips\|suricata" /var/log/remote/edge-r1.log | tail -3 | cut -c1-170'
+  ./scripts/attack.sh unblock
+  echo; ./scripts/attack.sh recon; show
+  ./scripts/attack.sh unblock
+  echo; ./scripts/attack.sh bruteforce; show
+  ./scripts/attack.sh unblock
+}
+
+case "$1" in failover) failover ;; loadshare) loadshare ;; monitoring) monitoring ;; attack) attack ;; *) functional ;; esac

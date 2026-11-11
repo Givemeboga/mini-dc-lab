@@ -12,8 +12,9 @@
 # promotion of the replica, not just the VIP move.
 P=${P:-clab-mini-dc}
 VIP=10.10.20.35
-APP="-u app -pAppPass2026"
-REPL_PASS=ReplPass2026
+. "$(dirname "$0")/../lab.env"          # passwords (scripts/gen-secrets.sh)
+APP="-u app -p$DB_APP_PASS"
+REPL_PASS=$DB_REPL_PASS
 declare -A IP=([db01]=10.10.20.30 [db02]=10.10.20.31)
 
 sql()   { docker exec "$P-$1" mariadb -N -e "$2" 2>/dev/null; }
@@ -49,7 +50,7 @@ restore)
   fi
   docker exec "$P-$F" mariadb --force -e "STOP SLAVE; RESET SLAVE ALL; SET GLOBAL read_only=ON; RESET MASTER; DROP DATABASE IF EXISTS shop;" 2>/dev/null
   docker exec "$P-$F" sh -c "mariadb-dump -h ${IP[$M]} -u repl -p$REPL_PASS --single-transaction --gtid --master-data=1 --databases shop > /tmp/seed.sql && { echo 'SET sql_log_bin=0;'; cat /tmp/seed.sql; } | mariadb"
-  docker exec "$P-$F" mariadb -e "CHANGE MASTER TO MASTER_HOST='${IP[$M]}', MASTER_USER='repl', MASTER_PASSWORD='$REPL_PASS', MASTER_USE_GTID=slave_pos, MASTER_CONNECT_RETRY=1; START SLAVE;"
+  docker exec "$P-$F" mariadb -e "CHANGE MASTER TO MASTER_HOST='${IP[$M]}', MASTER_USER='repl', MASTER_PASSWORD='$REPL_PASS', MASTER_USE_GTID=slave_pos, MASTER_CONNECT_RETRY=1, MASTER_SSL=1; START SLAVE;"
   for _ in $(seq 1 30); do [[ "$(repl "$F")" == *"Slave_IO_Running: Yes"* ]] && break; sleep 1; done
   docker exec -d "$P-$F" sh -c 'keepalived -f /etc/keepalived/keepalived.conf </dev/null >/dev/null 2>&1'
   sleep 3; status

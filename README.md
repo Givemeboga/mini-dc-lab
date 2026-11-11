@@ -30,9 +30,9 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 
 | | |
 |---|---|
-| **Scale** | 35 containers · 43 links · 3 buildings · out-of-band management network `10.10.10.0/24` |
+| **Scale** | 36 containers · 44 links · 3 buildings · out-of-band management network `10.10.10.0/24` |
 | **Internet edge** | 2 ISPs (NAT to the real Internet) · 2 FRR edge routers with NAT and port-forwards |
-| **Security** | **2 firewalls** (FRR + nftables, default drop; fw-02 standby) · host firewall on every server · no secrets in git (generated `lab.env` + lab CA) |
+| **Security** | **2 firewalls** (default drop, fw-02 standby) · **Suricata IDS + automatic blocking** at the edges · host firewall on every server · TLS everywhere inside (HTTPS, MariaDB, Zabbix PSK, SNMPv3) · switch logins via **RADIUS** · no secrets in git · Kali attacker for the demo |
 | **Public website** | `https://www.dc.lab` — TLS, HTTP→HTTPS, load balancer over 2 DMZ servers behind a keepalived virtual IP |
 | **Core / access** | 2 Arista cEOS cores (VRRP load sharing, LACP, MSTP, OSPF) · 2 cEOS top-of-rack switches, dual-homed |
 | **Servers** | intranet and API on **2 servers each** behind virtual IPs · primary + secondary DNS · backup · **MariaDB primary + replica** behind a keepalived virtual IP |
@@ -92,7 +92,7 @@ containerlab destroy -t mini-dc.clab.yml --cleanup
 ## Repository at a glance
 
 ```
-mini-dc.clab.yml        topology (35 nodes)              deploy.sh   start the lab
+mini-dc.clab.yml        topology (36 nodes)              deploy.sh   start the lab
 configs/                switch, router, firewall      setup.sh    build the images (once)
 scripts/                boot scripts, tests,          images/     Dockerfiles
                         failover + TrueNAS tools      docs/       documentation + diagrams

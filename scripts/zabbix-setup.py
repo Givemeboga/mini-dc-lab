@@ -4,12 +4,11 @@
     python3 scripts/zabbix-setup.py problems   list the current problems (exit code 1 if any, for tests.sh)
 Zabbix web UI: http://localhost:8080 - user Admin, password ZBX_ADMIN_PASS from lab.env (the default "zabbix"
 password is replaced on the first run). Dashboard: Dashboards -> "RAM+ Data Center".
-Everything is polled by monitor01 over the OOB management network: the switches by SNMP, every other node by
-its Zabbix agent (configured by scripts/init-ops.sh) and ping."""
+Everything is polled by monitor01 over the OOB management network: the switches by SNMPv3 (SHA + AES), every other
+node by its Zabbix agent (configured by scripts/init-ops.sh, TLS with a pre-shared key) and ping."""
 import json, os, sys, time, urllib.request
 
 URL = "http://localhost:8080/api_jsonrpc.php"
-SNMP_COMMUNITY = "dclab"
 ENV = {}
 _env = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lab.env")
 if os.path.exists(_env):
@@ -17,6 +16,10 @@ if os.path.exists(_env):
         if "=" in line and not line.lstrip().startswith("#"):
             k, v = line.strip().split("=", 1); ENV[k] = v
 ADMIN_PASS = ENV.get("ZBX_ADMIN_PASS", "zabbix")
+PSK = {"tls_connect": 2, "tls_accept": 2, "tls_psk_identity": "dc-lab", "tls_psk": ENV.get("ZBX_PSK", "")}
+SNMPV3 = {"version": 3, "bulk": 1, "securityname": "zabbix", "securitylevel": 2, "contextname": "",
+          "authprotocol": 1, "authpassphrase": ENV.get("SNMP_AUTH_PASS", ""),       # SHA1
+          "privprotocol": 1, "privpassphrase": ENV.get("SNMP_PRIV_PASS", "")}       # AES128
 
 # ---------------------------------------------------------------- inventory (name -> OOB management IP)
 SWITCHES = {"core-01": "10.10.10.11", "core-02": "10.10.10.12", "tor-01": "10.10.10.21", "tor-02": "10.10.10.22"}
@@ -25,6 +28,7 @@ AGENTS = {"edge-r1": "10.10.10.31", "edge-r2": "10.10.10.32", "fw-01": "10.10.10
           "ad01": "10.10.10.105", "backup01": "10.10.10.106", "web-dmz01": "10.10.10.108", "web-dmz02": "10.10.10.109",
           "syslog01": "10.10.10.110", "noc-ws": "10.10.10.111", "db02": "10.10.10.114", "web02": "10.10.10.115",
           "app02": "10.10.10.116", "bms01": "10.10.10.117"}
+# kali (the attacker) is deliberately not monitored
 PING_ONLY = {"storage01": "10.10.10.107"}            # TrueNAS VM: no agent
 
 FLOAT, UINT = 0, 3
@@ -52,13 +56,13 @@ for svc, ip, primary, backup, sev in [("www.dc.lab (public website)", "10.10.60.
 
 # Services
 for h in ["web01", "web02"]:
-    k = item(h, "net.tcp.service[http,,80]", "Intranet web server (HTTP 80)")
+    k = item(h, "net.tcp.service[https,,443]", "Intranet web server (HTTPS 443)")
     TRIGGERS.append((f"last({k})=0", f"Intranet web server down on {h}", 3))
 for h in ["web-dmz01", "web-dmz02"]:
     k = item(h, "net.tcp.service[https,,443]", "Public website (HTTPS 443)")
     TRIGGERS.append((f"last({k})=0", f"HTTPS front end down on {h}", 3))
 for h in ["app01", "app02"]:
-    k = item(h, "net.tcp.service[http,,8080]", "API (HTTP 8080)")
+    k = item(h, "net.tcp.service[https,,8443]", "API (HTTPS 8443)")
     TRIGGERS.append((f"last({k})=0", f"API down on {h}", 3))
 dns = {h: item(h, "net.dns[127.0.0.1,db01.dc.lab,A,2,1]", "DNS answers for dc.lab") for h in ["dns01", "ad01"]}
 for h, k in dns.items():
@@ -85,6 +89,12 @@ for h, need, sev in [("fw-01", 4, 4), ("fw-02", 4, 3), ("edge-r1", 2, 3), ("edge
     item(h, "dc.ct.count", "Connections tracked")
     TRIGGERS.append((f"last({o})<{need}", f"{h}: OSPF neighbor lost (fewer than {need} Full)", sev))
     TRIGGERS.append((f"last({b})<{need}", f"{h}: BFD session down", 2))
+# Intrusion detection / prevention at the Internet edge (scripts/ids.sh)
+for h in ["edge-r1", "edge-r2"]:
+    a = item(h, "dc.ids.alerts", "IDS alerts (total since boot)", delay="10s")
+    b = item(h, "dc.ips.blocked", "Attackers blocked now", delay="10s")
+    TRIGGERS.append((f"last({a})-min({a},5m)>0", f"IDS: attack detected at the Internet edge ({h})", 3))
+    TRIGGERS.append((f"last({b})>0", f"IPS: attacker blocked at {h} (10 min)", 4))
 for h in ["dns01", "ad01"]:
     k = item(h, "dc.ntp.synced", "NTP synchronised to the Internet pool", delay="60s")
     TRIGGERS.append((f"last({k})=0", f"NTP server {h} not synchronised", 2))
@@ -128,7 +138,8 @@ TILES = [("Hall A temperature", "bms01", "bms.sensor[hall_a_temp]"), ("Hall B te
          ("UPS A battery", "bms01", "bms.sensor[ups_a_batt_pct]"), ("IT power", "bms01", "bms.sensor[it_power_kw]"),
          ("PUE", "bms01", "bms.sensor[pue]"), ("Replication lag db02", "db02", "dc.mysql.lag"),
          ("fw-01 OSPF neighbors", "fw-01", "dc.ospf.full"), ("fw-02 synced connections", "fw-02", "dc.ct.count"),
-         ("Last backup age", "backup01", "dc.backup.age"), ("Log sources (syslog01)", "syslog01", "dc.syslog.sources")]
+         ("Last backup age", "backup01", "dc.backup.age"), ("Log sources (syslog01)", "syslog01", "dc.syslog.sources"),
+         ("IDS alerts (edge-r1)", "edge-r1", "dc.ids.alerts"), ("Attackers blocked (edge-r1)", "edge-r1", "dc.ips.blocked")]
 
 # ---------------------------------------------------------------- API
 token = None
@@ -184,13 +195,16 @@ def setup():
     hosts = {}
     for name, ip in {**SWITCHES, **AGENTS, **PING_ONLY}.items():
         snmp = name in SWITCHES
+        tls = PSK if name in AGENTS else {}
         if name in existing:
-            hosts[name] = existing[name]; continue
-        iface = ({"type": 2, "main": 1, "useip": 1, "ip": ip, "dns": "", "port": "161",
-                  "details": {"version": 2, "community": SNMP_COMMUNITY}} if snmp else
+            hosts[name] = existing[name]
+            if tls:
+                api("host.update", {"hostid": existing[name], **tls})
+            continue
+        iface = ({"type": 2, "main": 1, "useip": 1, "ip": ip, "dns": "", "port": "161", "details": SNMPV3} if snmp else
                  {"type": 1, "main": 1, "useip": 1, "ip": ip, "dns": "", "port": "10050"})
         t = ["Arista by SNMP"] if snmp else ["ICMP Ping"]
-        hosts[name] = api("host.create", {"host": name, "groups": [{"groupid": gid}], "interfaces": [iface],
+        hosts[name] = api("host.create", {"host": name, "groups": [{"groupid": gid}], "interfaces": [iface], **tls,
                                           "templates": [{"templateid": tpl[x]} for x in t if x in tpl]})["hostids"][0]
     print(f"  {len(hosts)} hosts")
 

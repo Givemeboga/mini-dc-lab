@@ -20,7 +20,7 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 35 nodes, 43 links, management network `dc-oob` |
+| `mini-dc.clab.yml` | Topology: 36 nodes, 44 links, management network `dc-oob` |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
 | `.clab-icons/` | Custom TopoViewer icons |
 | `configs/ceos/` | Arista startup configs — cores (L3, VRRP load sharing, MSTP, OSPF), ToRs (L2) |
@@ -38,10 +38,13 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 | `scripts/db-promote.sh` | keepalived hook: makes the node that takes the DB virtual IP a writable primary |
 | `scripts/zabbix-setup.py` | Configures Zabbix through its API: hosts, checks, alarms, dashboard · `problems` |
 | `scripts/init-ops.sh` | Boot script part run on every server / firewall / edge: log forwarding, NTP, Zabbix agent checks |
+| `scripts/ids.sh` / `configs/suricata/` | Suricata IDS + automatic blocking on the edges, lab-specific rules |
+| `scripts/attack.sh` | Attack simulation from kali for the security demo |
+| `scripts/secure-switches.sh` | Switch hardening at deploy: RADIUS logins, SNMPv3, random local password |
 | `scripts/facility.sh` | Building management simulator on bms01 (UPS, generators, cooling) + incident commands |
 | `deploy.sh` | secrets + `containerlab deploy` + stale-lab check + cEOS rescue-mode watcher + real failure reporting |
 | `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host` / `dc-truenas`, pulls Zabbix images |
-| `images/` | Dockerfiles for `dc-router`, `dc-host` and `dc-truenas` |
+| `images/` | Dockerfiles for `dc-router`, `dc-host`, `dc-truenas` and `dc-kali` (attacker) |
 | `lab.env.example` | Template of `lab.env` (the real file is generated and never committed) |
 | `truenas/` | TrueNAS ISO and VM disks (local only, not in git) |
 | `docs/` | This documentation, the architecture diagram, the TopoViewer screenshot and the testing guide |

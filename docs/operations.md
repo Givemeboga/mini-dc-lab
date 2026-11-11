@@ -40,6 +40,9 @@ virtual disks, so nothing has to be reinstalled.
 | `./scripts/db-failover.sh` | Crash MariaDB on the primary and measure the takeover |
 | `./scripts/db-failover.sh server` | Same, but the whole primary server goes offline |
 | `./scripts/db-failover.sh restore` | Make the failed database server the new standby |
+| `./scripts/tests.sh attack` | Security demo: web attack, port scan, SSH brute force from kali — detected, blocked, logged |
+| `./scripts/attack.sh web` / `recon` / `bruteforce` | One attack from kali (203.0.113.10) against the public address 10.0.0.1 |
+| `./scripts/attack.sh status` / `unblock` | IDS alerts and blocked addresses on the edges / clear the blocklists |
 | `./scripts/backup.sh run` | Back up now: database + switch configs → backup01 + TrueNAS LUN |
 | `./scripts/backup.sh list` | Restore points stored on backup01 and the job log |
 | `./scripts/backup.sh restore-test` | Prove the last backup restores (local copy and TrueNAS copy) |
@@ -56,7 +59,7 @@ virtual disks, so nothing has to be reinstalled.
 
 | Device | How |
 |---|---|
-| cEOS (cores, ToRs) | `ssh admin@clab-mini-dc-core-01` (password `admin`) or `docker exec -it clab-mini-dc-core-01 Cli` |
+| cEOS (cores, ToRs) | `ssh netadmin@clab-mini-dc-core-01` (password `SWITCH_PASS` in `lab.env`, checked by RADIUS on ad01) or `docker exec -it clab-mini-dc-core-01 Cli` |
 | FRR routers / firewalls | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing; same for `fw-02`) · `... sh` then `nft list ruleset` |
 | Servers / PCs | `docker exec -it clab-mini-dc-web01 bash` |
 | Zabbix | <http://localhost:8080> — `Admin` / `ZBX_ADMIN_PASS` from `lab.env` |
@@ -108,6 +111,15 @@ battery A run out so power path A goes down while the IT keeps running on path B
 Logs: every server, firewall and edge forwards its logs (keepalived, FRR, BIND, chrony, the firewall's dropped packets…)
 to **both** collectors, syslog01 and noc-ws (`/var/log/remote/<device>.log`), over the OOB network.
 Time: dns01 and ad01 are NTP servers (synced to pool.ntp.org); servers and switches use them.
+
+### Security demo — `./scripts/tests.sh attack`
+
+The attacker **kali** (203.0.113.10) is an ordinary Internet host behind ISP A. `attack.sh web` sends a SQL injection,
+a directory traversal and the nikto scanner to the public address 10.0.0.1; `recon` port-scans it with nmap;
+`bruteforce` tries SSH passwords with hydra. Suricata on edge-r1 detects each attack, the edge blocks the attacker for
+10 minutes (`attack.sh status` shows the alerts, the blocklist and that the website is now unreachable for the attacker),
+syslog01 receives the alerts and the block, and Zabbix raises *"IDS: attack detected"* and *"IPS: attacker blocked"*.
+`attack.sh unblock` clears the blocklists.
 
 ### Backups — `./scripts/backup.sh`
 

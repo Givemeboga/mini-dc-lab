@@ -24,8 +24,30 @@ web_page() {   # $1 = title, $2 = colour
 HTML
 }
 
-start_web() {  # intranet web01/web02: plain HTTP on port 80
-  sed -i '/listen \[::\]/d' /etc/nginx/sites-enabled/default   # IPv4-only lab
+tls_files() {  # $1 = certificate name in /lab/pki (intranet, app, db, www) -> /etc/ssl/dc/$1.{crt,key}
+  mkdir -p /etc/ssl/dc
+  install -m 644 /lab/pki/$1.crt /etc/ssl/dc/$1.crt
+  install -m 640 /lab/pki/$1.key /etc/ssl/dc/$1.key
+}
+
+start_web() {  # intranet web01/web02: HTTPS (lab CA certificate), HTTP only redirects
+  tls_files intranet
+  cat > /etc/nginx/sites-enabled/default <<'CONF'
+server {
+    listen 80 default_server;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl default_server;
+    server_name intranet.dc.lab;
+    ssl_certificate     /etc/ssl/dc/intranet.crt;
+    ssl_certificate_key /etc/ssl/dc/intranet.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    root /var/www/html;
+    index index.html;
+}
+CONF
   nginx </dev/null >/dev/null 2>&1
 }
 
@@ -122,10 +144,16 @@ CONF
     echo 'zone "dc.lab" { type slave; masters { 10.10.20.40; }; file "/var/cache/bind/db.dc.lab";
                          min-retry-time 30; max-retry-time 60; };' > /etc/bind/named.conf.local
     mkdir -p /run/named && chown bind:bind /run/named /var/cache/bind
-    # at boot the switches may not forward yet; a failed transfer makes BIND cache dns01 as unreachable,
-    # so start named only once dns01 answers (in the background: the rest of the boot goes on)
-    ( for _ in $(seq 120); do dig +short +time=1 +tries=1 @10.10.20.40 dc.lab SOA | grep -q . && break; sleep 5; done
-      named -u bind -4 </dev/null >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
+    # at boot the switches may not forward yet, and after a failed transfer BIND caches dns01 as unreachable and
+    # stops trying. Watchdog (background, first 10 min): while ad01 has no zone but dns01 answers, restart named.
+    ( for _ in $(seq 60); do
+        dig +short +time=1 +tries=1 @127.0.0.1 dc.lab SOA | grep -q . && break
+        if dig +short +time=1 +tries=1 @10.10.20.40 dc.lab SOA | grep -q .; then
+          pkill -x named; while pidof named >/dev/null; do sleep 0.2; done
+        fi
+        pidof named >/dev/null || named -u bind -4 </dev/null >/dev/null 2>&1
+        sleep 10
+      done ) </dev/null >/dev/null 2>&1 &
     return
   fi
   cat > /etc/bind/named.conf.local <<'CONF'
@@ -181,11 +209,17 @@ GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'backup'@'10.10.4
 -- Zabbix agent (OS user zabbix, no password: unix socket) may only read the replication state
 CREATE USER IF NOT EXISTS 'zabbix'@'localhost' IDENTIFIED VIA unix_socket;
 GRANT REPLICATION CLIENT, SLAVE MONITOR ON *.* TO 'zabbix'@'localhost';
+-- every network account must use TLS (the local zabbix account uses the unix socket)
+ALTER USER 'web'@'10.10.60.%' REQUIRE SSL;
+ALTER USER 'app'@'10.10.20.%' REQUIRE SSL;
+ALTER USER 'repl'@'10.10.20.%' REQUIRE SSL;
+ALTER USER 'backup'@'10.10.40.10' REQUIRE SSL;
 FLUSH PRIVILEGES;
 SQL
 }
 
 mariadb_up() {   # $1 = server-id, $2 = read_only (0|1)
+  tls_files db; chgrp mysql /etc/ssl/dc/db.key
   cat > /etc/mysql/mariadb.conf.d/60-ha.cnf <<CNF
 [mysqld]
 server-id         = $1
@@ -194,6 +228,10 @@ binlog_format     = ROW
 log_slave_updates = ON
 read_only         = $2
 skip_name_resolve = ON          # no reverse-DNS lookup per client: fast logins, also during failover
+ssl_cert          = /etc/ssl/dc/db.crt   # TLS: required for every network account (REQUIRE SSL)
+ssl_key           = /etc/ssl/dc/db.key
+ssl_ca            = /etc/ssl/dc/db.crt
+tls_version       = TLSv1.2,TLSv1.3
 CNF
   mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
   mysqld_safe --bind-address=0.0.0.0 </dev/null >/var/log/mysqld_safe.log 2>&1 &
@@ -223,7 +261,7 @@ start_db_replica() {  # db02: copy of db01, then live replication from it
   mariadb-dump -h $primary $r --single-transaction --gtid --master-data=1 --databases shop >/tmp/seed.sql 2>/var/log/db-seed.log
   { echo "SET sql_log_bin=0;"; cat /tmp/seed.sql; } | mariadb
   mariadb -e "CHANGE MASTER TO MASTER_HOST='$primary', MASTER_USER='repl', MASTER_PASSWORD='$DB_REPL_PASS',
-              MASTER_USE_GTID=slave_pos, MASTER_CONNECT_RETRY=1; START SLAVE;"
+              MASTER_USE_GTID=slave_pos, MASTER_CONNECT_RETRY=1, MASTER_SSL=1; START SLAVE;"
 }
 
 start_keepalived() {  # $1 = VRRP priority (db01 110, db02 100); nopreempt = no automatic failback
@@ -268,10 +306,41 @@ CONF
   rsyslogd </dev/null >/dev/null 2>&1
 }
 
-start_app() {
+start_app() {  # API: Python on 127.0.0.1:8080, published only through nginx TLS on 8443
+  tls_files app
+  cat > /etc/nginx/sites-enabled/default <<'CONF'
+server {
+    listen 8443 ssl default_server;
+    server_name app.dc.lab;
+    ssl_certificate     /etc/ssl/dc/app.crt;
+    ssl_certificate_key /etc/ssl/dc/app.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / { proxy_pass http://127.0.0.1:8080; }
+}
+CONF
+  nginx </dev/null >/dev/null 2>&1
   mkdir -p /srv/app
   echo "{\"service\":\"$H\",\"status\":\"ok\",\"db\":\"db.dc.lab (10.10.20.35):3306\"}" > /srv/app/index.json
-  nohup python3 -m http.server 8080 --directory /srv/app </dev/null >/var/log/app.log 2>&1 &
+  nohup python3 -m http.server 8080 --bind 127.0.0.1 --directory /srv/app </dev/null >/var/log/app.log 2>&1 &
+}
+
+# Network administrators' logins on the switches: RADIUS (FreeRADIUS) on ad01, reached over the OOB network.
+# The Arista-AVPair gives privilege 15; logins and accounting go to syslog -> both NOC collectors.
+start_radius() {
+  local R=/etc/freeradius/3.0
+  cat > $R/clients.conf <<CONF
+client oob-switches {
+    ipaddr = 10.10.10.0/24
+    secret = $RADIUS_SECRET
+}
+CONF
+  cat > $R/mods-config/files/authorize <<CONF
+$SWITCH_USER Cleartext-Password := "$SWITCH_PASS"
+        Arista-AVPair = "shell:priv-lvl=15"
+CONF
+  sed -i 's/^\(\s*destination = \).*/\1syslog/; s/^\(\s*auth = \)no/\1yes/; s/^\(\s*auth_badpass = \)no/\1yes/' $R/radiusd.conf
+  mkdir -p /run/freeradius && chown freerad:freerad /run/freeradius
+  freeradius </dev/null >/dev/null 2>&1
 }
 
 start_bms() {  # building management system simulator (power + cooling sensors for Zabbix)
@@ -290,9 +359,9 @@ SERVERS=10.10.20.0/24 USERS=10.10.50.0/24 NOC=10.10.70.0/24 DMZ=10.10.60.0/24 BA
 role_fw() {
   local allow
   case "$H" in
-    web0[12])    allow="tcp dport 80 ip saddr { $SERVERS, $USERS, $NOC } accept
+    web0[12])    allow="tcp dport { 80, 443 } ip saddr { $SERVERS, $USERS, $NOC } accept
                         ip protocol 112 ip saddr $SERVERS accept" ;;
-    app0[12])    allow="tcp dport 8080 ip saddr { $SERVERS, $USERS, $NOC } accept
+    app0[12])    allow="tcp dport 8443 ip saddr { $SERVERS, $USERS, $NOC } accept
                         ip protocol 112 ip saddr $SERVERS accept" ;;
     dns01|ad01)  allow="meta l4proto { tcp, udp } th dport 53 ip saddr 10.10.0.0/16 accept
                         udp dport 123 ip saddr 10.10.0.0/16 accept" ;;
@@ -335,16 +404,16 @@ case "$H" in
   # ---- Salle serveurs 1 (TOR-01) ------------------------------------------
   # intranet.dc.lab = 10.10.20.12 (web01 / web02), app.dc.lab = 10.10.20.22 (app01 / app02): one server per rack
   web01)     addr eth1 10.10.20.10/24; gw 10.10.20.1; use_dc_dns; web_page "Internal intranet (VLAN 20)" "#2f6fb3"; start_web
-             start_vip INTRANET 21 10.10.20.12/24 110 "/usr/bin/curl -sf -o /dev/null --max-time 1 http://127.0.0.1/" ;;
-  app01)     addr eth1 10.10.20.20/24; gw 10.10.20.1; use_dc_dns; start_app; start_vip APP 22 10.10.20.22/24 110 "/usr/bin/curl -sf -o /dev/null --max-time 1 http://127.0.0.1:8080/index.json" ;;
+             start_vip INTRANET 21 10.10.20.12/24 110 "/usr/bin/curl -skf -o /dev/null --max-time 1 https://127.0.0.1/" ;;
+  app01)     addr eth1 10.10.20.20/24; gw 10.10.20.1; use_dc_dns; start_app; start_vip APP 22 10.10.20.22/24 110 "/usr/bin/curl -skf -o /dev/null --max-time 1 https://127.0.0.1:8443/index.json" ;;
   dns01)     addr eth1 10.10.20.40/24; gw 10.10.20.1; start_dns primary; use_dc_dns ;;
   db02)      addr eth1 10.10.20.31/24; gw 10.10.20.1; use_dc_dns; start_db_replica; role_fw; sleep 5; start_keepalived 100 ;;
   # ---- Salle serveurs 2 (TOR-02) ------------------------------------------
   db01)      addr eth1 10.10.20.30/24; gw 10.10.20.1; addr eth2 10.10.30.30/24; use_dc_dns; start_db; role_fw; start_keepalived 110 ;;
-  ad01)      addr eth1 10.10.20.50/24; gw 10.10.20.1; start_dns secondary; use_dc_dns ;;
+  ad01)      addr eth1 10.10.20.50/24; gw 10.10.20.1; start_dns secondary; use_dc_dns; start_radius ;;
   web02)     addr eth1 10.10.20.11/24; gw 10.10.20.1; use_dc_dns; web_page "Internal intranet (VLAN 20)" "#1f5596"; start_web
-             start_vip INTRANET 21 10.10.20.12/24 100 "/usr/bin/curl -sf -o /dev/null --max-time 1 http://127.0.0.1/" ;;
-  app02)     addr eth1 10.10.20.21/24; gw 10.10.20.1; use_dc_dns; start_app; start_vip APP 22 10.10.20.22/24 100 "/usr/bin/curl -sf -o /dev/null --max-time 1 http://127.0.0.1:8080/index.json" ;;
+             start_vip INTRANET 21 10.10.20.12/24 100 "/usr/bin/curl -skf -o /dev/null --max-time 1 https://127.0.0.1/" ;;
+  app02)     addr eth1 10.10.20.21/24; gw 10.10.20.1; use_dc_dns; start_app; start_vip APP 22 10.10.20.22/24 100 "/usr/bin/curl -skf -o /dev/null --max-time 1 https://127.0.0.1:8443/index.json" ;;
   backup01)  addr eth1 10.10.40.10/24; gw 10.10.40.1; addr eth2 10.10.30.40/24; use_dc_dns; start_backup ;;
   # ---- DMZ -----------------------------------------------------------------
   web-dmz01) addr eth1 10.10.60.10/24; gw 10.10.60.1; use_dc_dns; web_page "Public website www.dc.lab - served by web-dmz01" "#c2336a"

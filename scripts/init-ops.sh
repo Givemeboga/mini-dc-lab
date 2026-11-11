@@ -2,11 +2,20 @@
 # Operations layer, run at boot by init-host.sh and init-router.sh on every server, firewall and edge:
 #   - log forwarding: everything this node logs goes to both collectors (syslog01, noc-ws) over the OOB network
 #   - NTP: chrony, dns01/ad01 serve time to the others (servers only; see below)
-#   - Zabbix agent: passive, listens on the OOB address only, with this role's custom checks (UserParameter)
+#   - Zabbix agent: passive, listens on the OOB address only, TLS-PSK encrypted, with this role's custom checks
+#   - trust of the lab's certificate authority (pki/ca.crt): internal HTTPS and MariaDB TLS are verifiable
 # Only the role-specific checks live here; Zabbix items, triggers and the dashboard: scripts/zabbix-setup.py.
 H=$(hostname)
 OOB=$(ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1)
 COLLECTORS="10.10.10.110 10.10.10.111"      # syslog01, noc-ws (OOB addresses)
+[ -f /lab/lab.env ] && . /lab/lab.env
+
+trust_ca() {
+  [ -f /lab/pki/ca.crt ] && [ -x "$(command -v update-ca-certificates)" ] || return
+  mkdir -p /usr/local/share/ca-certificates
+  cp /lab/pki/ca.crt /usr/local/share/ca-certificates/ram-lab-ca.crt
+  update-ca-certificates >/dev/null 2>&1
+}
 
 logs() {
   [ -x "$(command -v rsyslogd)" ] || return
@@ -22,9 +31,12 @@ logs() {
 # still syncs to the time servers and reports its offset, which Zabbix checks. On real servers drop -x.
 ntp() {
   [ -x "$(command -v chronyd)" ] || return
+  # clients poll every 16 s (minpoll 4): at boot the network is not up yet, they sync within a minute once it is
+  # dns01 is preferred and trusted: with only two servers that disagree (e.g. one on its local clock), chrony would
+  # otherwise reject both as falsetickers; ad01 takes over if dns01 stops answering
   case "$H" in
     dns01|ad01) printf '%s\n' "pool pool.ntp.org iburst maxsources 3" "allow 10.10.0.0/16" "local stratum 10" ;;
-    *)          printf '%s\n' "server 10.10.20.40 iburst" "server 10.10.20.50 iburst" ;;
+    *)          printf '%s\n' "server 10.10.20.40 iburst minpoll 4 maxpoll 6 prefer trust" "server 10.10.20.50 iburst minpoll 4 maxpoll 6" ;;
   esac > /etc/chrony/chrony.conf
   printf '%s\n' "driftfile /var/lib/chrony/chrony.drift" "makestep 1 3" >> /etc/chrony/chrony.conf
   pkill -x chronyd; sleep 0.5
@@ -42,6 +54,11 @@ agent() {
     echo "PidFile=/run/zabbix/zabbix_agentd.pid"
     echo "LogFile=/var/log/zabbix/zabbix_agentd.log"
     echo "Timeout=5"
+    # encrypted and authenticated: the server must present the same pre-shared key (ZBX_PSK in lab.env)
+    echo "TLSConnect=psk"
+    echo "TLSAccept=psk"
+    echo "TLSPSKIdentity=dc-lab"
+    echo "TLSPSKFile=/etc/zabbix/dc.psk"
     # which virtual IPs this node owns right now (1/0): www, intranet, app, db, DMZ gateway
     echo 'UserParameter=dc.vip[*],ip -4 -o addr show | grep -c " $1/"'
     [ -x "$(command -v chronyc)" ] && cat <<'EOF'
@@ -67,11 +84,15 @@ EOF
 UserParameter=dc.ospf.full,vtysh -c 'show ip ospf neighbor' 2>/dev/null | grep -c Full
 UserParameter=dc.bfd.up,vtysh -c 'show bfd peers brief' 2>/dev/null | grep -ci ' up '
 UserParameter=dc.ct.count,cat /proc/sys/net/netfilter/nf_conntrack_count
+UserParameter=dc.ids.alerts,cat /run/dc-ips/alerts 2>/dev/null || echo 0
+UserParameter=dc.ips.blocked,cat /run/dc-ips/blocked 2>/dev/null || echo 0
 EOF
       ;;
       bms01) echo 'UserParameter=bms.sensor[*],cat /var/lib/bms/$1 2>/dev/null || echo -1' ;;
     esac
   } > /etc/zabbix/dc-agent.conf
+  echo "$ZBX_PSK" > /etc/zabbix/dc.psk
+  chown zabbix /etc/zabbix/dc.psk; chmod 400 /etc/zabbix/dc.psk
   # read-only vtysh for the agent: the FRR sockets belong to group frr, the vty access to frrvty
   case "$H" in fw-0[12]|edge-r[12]) addgroup zabbix frrvty 2>/dev/null; addgroup zabbix frr 2>/dev/null ;; esac
   pkill -x zabbix_agentd; sleep 0.5
@@ -79,5 +100,5 @@ EOF
 }
 
 [ -n "$1" ] && { "$1"; exit; }
-logs; ntp; agent
+trust_ca; logs; ntp; agent
 echo "[init-ops] $H: logs -> $COLLECTORS, ntp, zabbix agent on $OOB:10050"

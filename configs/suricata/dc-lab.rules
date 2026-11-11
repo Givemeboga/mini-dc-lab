@@ -1,0 +1,8 @@
+# RAM+ Data Center - own Suricata rules, loaded on edge-r1 / edge-r2 next to the Emerging Threats Open rules
+# (scan, web_server, exploit, attack_response, dos groups, selected when the dc-router image is built).
+# Priority 1-2 alerts make the edge block the source for 10 minutes (scripts/ids.sh).
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"DC-LAB port scan (many connection attempts from one source)"; flags:S,12; threshold: type threshold, track by_src, count 30, seconds 10; classtype:attempted-recon; priority:2; sid:9000001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"DC-LAB SSH brute force attempt"; flags:S,12; threshold: type threshold, track by_src, count 5, seconds 30; classtype:attempted-admin; priority:1; sid:9000002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"DC-LAB SQL injection attempt in the URL"; flow:to_server,established; http.uri; content:"union"; nocase; content:"select"; nocase; distance:0; classtype:web-application-attack; priority:1; sid:9000003; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"DC-LAB directory traversal attempt"; flow:to_server,established; http.uri.raw; content:"../"; classtype:web-application-attack; priority:1; sid:9000004; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"DC-LAB attack tool user-agent (nikto / sqlmap / nmap / hydra)"; flow:to_server,established; http.user_agent; pcre:"/(nikto|sqlmap|nmap|hydra)/i"; classtype:web-application-attack; priority:2; sid:9000005; rev:1;)

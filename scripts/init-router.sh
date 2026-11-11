@@ -14,6 +14,11 @@ case "$H" in
     [ "$H" = isp-a ] && IP=10.0.0.2/30 || IP=10.0.0.6/30
     ip link set eth1 up
     ip addr add "$IP" dev eth1 2>/dev/null
+    # ISP A's other customer: the attacker (kali, 203.0.113.10) - an ordinary Internet address for the lab
+    if [ "$H" = isp-a ]; then
+      for i in $(seq 30); do [ -e /sys/class/net/eth2 ] && break; sleep 1; done
+      ip link set eth2 up; ip addr add 203.0.113.1/24 dev eth2 2>/dev/null
+    fi
     nft -f /lab/configs/nft/isp.nft
     ;;
   edge-r1|edge-r2)
@@ -21,6 +26,7 @@ case "$H" in
     # routing table only contains what FRR (static + OSPF) decides.
     ip route del default dev eth0 2>/dev/null
     nft -f /lab/configs/nft/$H.nft
+    sh /lab/scripts/ids.sh              # Suricata on the WAN link + automatic blocking
     sh /lab/scripts/init-ops.sh
     ;;
   fw-01|fw-02)

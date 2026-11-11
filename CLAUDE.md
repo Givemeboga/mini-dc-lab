@@ -20,7 +20,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 35 nodes, 43 links, mgmt network `dc-oob` 10.10.10.0/24 |
+| `mini-dc.clab.yml` | Topology: 36 nodes, 44 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
 | `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP load sharing: core-01 VLAN 20/40, core-02 VLAN 50/70, MSTP, OSPF), tor-01/02 (L2) |
 | `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2, fw-01 (active) and fw-02 (standby, OSPF cost 100); bfdd on, `ip ospf bfd` on edge/fw/core links |
@@ -37,6 +37,9 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/tests.sh` | 39 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
 | `scripts/zabbix-setup.py` | Zabbix via API (run by deploy.sh): hosts, custom agent items + triggers, dashboard; `problems` lists active ones. Admin / ZBX_ADMIN_PASS |
 | `scripts/init-ops.sh` | run by init-host/init-router: rsyslog forward to both collectors (OOB), chrony (-x), zabbix_agentd with role UserParameters |
+| `scripts/ids.sh` | edges: Suricata on eth1 (ET Open selection baked in dc-router + configs/suricata/dc-lab.rules), auto-block in nft set `inet edge blocklist` (10 min) |
+| `scripts/attack.sh` | kali attacks (web / recon / bruteforce), `status`, `unblock`; demo: `tests.sh attack` |
+| `scripts/secure-switches.sh` | run by deploy.sh: RADIUS AAA (ad01), SNMPv3 user zabbix, random local admin, removes community dclab |
 | `scripts/facility.sh` | BMS simulator on bms01 (`run` daemon) + `status`/`cooling-failure`/`power-failure`/`generator-failure`/`restore` |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |
@@ -118,6 +121,11 @@ docker exec -it clab-mini-dc-fw-01 vtysh
   (tests.sh does this); FRR also has `max-metric router-lsa on-startup 20`, keepalived DMZ_GW `preempt_delay 10`.
 - BIND secondary with no zone retries after 500 s by default → `min-retry-time 30` on ad01.
 - nftables `log` does nothing in a container netns (`nf_log_all_netns=0`) → `log group 1` + ulogd (NFLOG) → rsyslog.
+- Security: Suricata only on the edges' WAN link — behind them port-forwards are SNATed, so the firewall would only
+  see edge IPs; HTTPS payloads are invisible to any network IDS (web attacks are detected on port 80). Switch logins:
+  `aaa authentication login default group NETADMIN local` -> local admin works only when RADIUS is unreachable, so tools
+  (backup.sh eAPI) use SWITCH_USER=netadmin. MariaDB clients use TLS by default (10.11); `REQUIRE SSL` on web/app/repl/backup.
+  kali: eth0 down + /lab unmounted (attacker gets no management access, no secrets).
 - Zabbix agent runs as user zabbix: MariaDB via `zabbix@localhost` unix_socket (REPLICATION CLIENT, SLAVE MONITOR),
   vtysh needs groups frr + frrvty. Agents listen on the OOB IP only; monitor01 has `zabbix_get` for tests.
 - Writing to the iSCSI LUN from a container: no kernel initiator in WSL → `qemu-img convert -n … iscsi://` /
