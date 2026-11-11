@@ -183,15 +183,17 @@ accept counter moves), then one blocked test (the DROP counter moves). Finish wi
 <h2>4. Core switches (Arista cEOS)</h2>
 <div class="how"><b class="t">How it works.</b> core-01 and core-02 are the layer-3 heart of the data center. They route between
 VLANs, and they provide a <b>redundant default gateway</b> with <b>VRRP</b> (HSRP equivalent): the virtual address <code>.1</code>
-of each VLAN lives on core-01 (priority 110) and moves to core-02 if core-01 fails. The two cores are joined by an
-<b>LACP Port-Channel</b> (2 links seen as one), run <b>MSTP</b> spanning tree with core-01 as root (no loops on the
+of each VLAN lives on one core (priority 110) and moves to the other if it fails. The cores <b>share the load</b>:
+core-01 is the gateway for servers and backup (VLAN 20/40), core-02 for users and the NOC (VLAN 50/70), and each backs up
+the other. The two cores are joined by an <b>LACP Port-Channel</b> (2 links seen as one), run <b>MSTP</b> spanning tree
+with the same split (instance 1 = VLAN 20/40 rooted on core-01, instance 0 = VLAN 50/70 rooted on core-02, no loops on the
 redundant cabling) and <b>OSPF</b> with the firewall.</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show vlan"</td><td><span class="exp">VLANs 20, 40, 50, 70, 99</span> <span class="why">→ servers, backup, users, NOC, core transit are defined</span></td></tr>
-<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show vrrp brief"</td><td><span class="exp">core-01 <b>Master</b> of the 4 gateways</span> <span class="why">→ it currently answers on every .1</span></td></tr>
-<tr><td class="cmd">docker exec $P-core-02 Cli -p 15 -c "show vrrp brief"</td><td><span class="exp">core-02 <b>Backup</b></span> <span class="why">→ ready to take over in ≈3 s</span></td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show vrrp brief"</td><td><span class="exp">core-01 <b>Master</b> Vl20/Vl40, Backup Vl50/Vl70</span> <span class="why">→ core-01 routes servers and backup</span></td></tr>
+<tr><td class="cmd">docker exec $P-core-02 Cli -p 15 -c "show vrrp brief"</td><td><span class="exp">core-02 <b>Master</b> Vl50/Vl70, Backup Vl20/Vl40</span> <span class="why">→ core-02 routes users and NOC; each core is ready to take over the other's VLANs in ≈3 s</span></td></tr>
 <tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show port-channel dense"</td><td><span class="exp"><code>Po1(U)</code> with Et1 + Et2</span> <span class="why">→ both inter-core links bundled: double bandwidth, survives one cable cut</span></td></tr>
-<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show spanning-tree root"</td><td><span class="exp">MST0 root, priority 4096, root port <i>None</i></span> <span class="why">→ core-01 is the root, so the spanning tree is predictable</span></td></tr>
+<tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show spanning-tree root"</td><td><span class="exp">MST1 root port <i>None</i> · MST0 root port <code>Po1</code></span> <span class="why">→ core-01 is root for VLAN 20/40, core-02 for VLAN 50/70: frames go straight to the core that routes them</span></td></tr>
 <tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show ip ospf neighbor"</td><td><span class="exp">fw-01 and core-02 <b>FULL</b></span> <span class="why">→ dynamic routing to the firewall + VLAN 99 backup path</span></td></tr>
 <tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show ip route"</td><td><span class="exp"><code>O E1 0.0.0.0/0</code></span> <span class="why">→ the default route comes from the firewall via OSPF</span></td></tr>
 <tr><td class="cmd">docker exec $P-core-01 Cli -p 15 -c "show interfaces status"</td><td><span class="exp">all ports <code>connected</code></span> <span class="why">→ every cable of the design is up</span></td></tr>
@@ -335,10 +337,14 @@ the impact with a fast ping (5 per second):<br>
 the default from edge-r2 (cost 20) within about one OSPF dead interval. Then the link is restored and traffic returns to ISP A.<br>
 <b>Core failover</b> — core-01's VLAN 20 interface (the VRRP master) is shut. core-02 stops hearing VRRP advertisements and
 becomes Master of <code>10.10.20.1</code>; servers keep the same gateway address. When core-01 comes back it preempts
-(priority 110) and becomes Master again.</div>
+(priority 110) and becomes Master again.<br>
+<b>Core load sharing</b> — <code>./scripts/tests.sh loadshare</code> shows the VRRP masters on both cores, sends 200 pings from
+web01 (servers) and from pc-01 (users) and counts the packets each core received, then shuts core-02's VLAN 50 interface
+while pc-01 pings its gateway: core-01 takes the users over and gives them back when core-02 returns.</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">./scripts/tests.sh</td><td><span class="ok">20 passed, 0 failed</span> <span class="why">→ the whole design works (section 12)</span></td></tr>
 <tr><td class="cmd">./scripts/tests.sh failover</td><td><span class="exp">ISP ≈ 0.2 s, VRRP ≈ 2.8 s of loss</span> <span class="why">→ redundancy works; the numbers are the failover times (links are restored automatically)</span></td></tr>
+<tr><td class="cmd">./scripts/tests.sh loadshare</td><td><span class="exp">web01: core-01 201 / core-02 0 · pc-01: core-01 0 / core-02 201 · user failover ≈ 2.4 s</span> <span class="why">→ both cores work at the same time, each one backs up the other</span></td></tr>
 </tbody></table>
 <div class="keep">
 <p><b>Live version for a presentation</b> — use two terminals:</p>
@@ -350,7 +356,7 @@ docker exec clab-mini-dc-edge-r1 ip link set eth1 down
 docker exec clab-mini-dc-fw-01 vtysh -c "show ip route 0.0.0.0/0"     <span class="c"># now via edge-r2 (10.0.1.5)</span>
 docker exec clab-mini-dc-edge-r1 ip link set eth1 up</pre>
 </div>
-<p>Measured results: ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway failover (VRRP) ≈ <b>2.8 s</b>.</p>
+<p>Measured results: ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway failover (VRRP) ≈ <b>2.8 s</b> · user gateway failover to core-01 ≈ <b>2.4 s</b>.</p>
 
 <h3>Database failover (MariaDB high availability)</h3>
 <div class="how keep"><b class="t">How it works.</b> db01 (primary, rack B) replicates every change live to <b>db02</b> (replica,
@@ -380,7 +386,7 @@ timeout). The outage runs from the failure to the first successful write on the 
 <table><thead><tr><th>Area</th><th>Expected</th><th>Result</th></tr></thead><tbody>
 <tr><td>Edge &amp; ISPs</td><td>both edges reach 8.8.8.8 · OSPF Full · NAT + port-forward present</td><td class="ok">PASS</td></tr>
 <tr><td>Firewall</td><td>4 OSPF neighbors · default via edge-r1 · 8 allowed flows work · 6 forbidden flows dropped and counted</td><td class="ok">PASS</td></tr>
-<tr><td>Core</td><td>VRRP master/backup · Po1 up · core-01 MST root · OSPF FULL · default route</td><td class="ok">PASS</td></tr>
+<tr><td>Core</td><td>VRRP load sharing (core-01 VLAN 20/40, core-02 VLAN 50/70) · Po1 up · MST roots split · OSPF FULL · default route</td><td class="ok">PASS</td></tr>
 <tr><td>Top-of-Rack</td><td>ports connected · MACs learned · one uplink alternate · Po1 up</td><td class="ok">PASS</td></tr>
 <tr><td>Servers &amp; DNS</td><td>gateway, cross-rack, Internet, intranet · internal + forwarded names</td><td class="ok">PASS</td></tr>
 <tr><td>DMZ</td><td>public sites via both ISPs · DMZ → MariaDB allowed</td><td class="ok">PASS</td></tr>

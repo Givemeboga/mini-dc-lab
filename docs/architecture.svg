@@ -166,8 +166,8 @@
   <text x="48" y="570" class="ps">Edges ↔ FW-01</text><text x="160" y="570" class="ip">10.0.1.0/30 · 10.0.1.4/30</text>
   <text x="48" y="588" class="ps">FW-01 ↔ cores</text><text x="160" y="588" class="ip">10.10.99.0/30 · .4/30</text>
   <line x1="46" y1="604" x2="334" y2="604" stroke="#e2e8f0"/>
-  <text x="48" y="622" class="ps">Gateways: VRRP VIP .1 — CORE-01 master (prio 110),</text>
-  <text x="48" y="636" class="ps">CORE-02 backup · real IPs .2 / .3 (VLAN 30 has no gateway)</text>
+  <text x="48" y="622" class="ps">Gateways: VRRP VIP .1 · load sharing: CORE-01 master 20/40,</text>
+  <text x="48" y="636" class="ps">CORE-02 master 50/70 · real IPs .2 / .3 (VLAN 30: none)</text>
 
   <!-- Bâtiment technique A -->
   <rect x="30" y="668" width="320" height="202" rx="8" fill="#fffbeb" stroke="#d99a1e" stroke-dasharray="6 4"/>
@@ -471,9 +471,9 @@
   <text x="1188" y="961" class="ph">Key features</text>
   <g class="pt">
     <use href="#check" x="1188" y="976" width="13" height="13"/><text x="1207" y="987">Dual ISP failover via OSPF (≈0.2 s)</text>
-    <use href="#check" x="1188" y="1000" width="13" height="13"/><text x="1207" y="1011">VRRP gateway redundancy (≈2.8 s)</text>
+    <use href="#check" x="1188" y="1000" width="13" height="13"/><text x="1207" y="1011">VRRP load sharing + failover (≈2.8 s)</text>
     <use href="#check" x="1188" y="1024" width="13" height="13"/><text x="1207" y="1035">LACP on core &amp; ToR</text>
-    <use href="#check" x="1188" y="1048" width="13" height="13"/><text x="1207" y="1059">MSTP loop protection · core-01 root</text>
+    <use href="#check" x="1188" y="1048" width="13" height="13"/><text x="1207" y="1059">MSTP · one root per VLAN group</text>
     <use href="#check" x="1188" y="1072" width="13" height="13"/><text x="1207" y="1083">OSPF dynamic routing (1 s / 3 s)</text>
     <use href="#check" x="1188" y="1096" width="13" height="13"/><text x="1207" y="1107">NAT + port-forward to the DMZ</text>
     <use href="#check" x="1420" y="976" width="13" height="13"/><text x="1439" y="987">nftables firewall · default drop</text>
