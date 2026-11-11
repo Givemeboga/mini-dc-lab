@@ -47,6 +47,9 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 | ISP failover | each edge announces its default route in OSPF (cost 10 / 20) | **≈ 0.2 s** |
 | Gateway failover | VRRP on the cores, servers keep the `.1` gateway | **≈ 2.8 s** |
 | Database failover | MariaDB replication + keepalived virtual IP `10.10.20.35` | **≈ 2.3 s** crash · **≈ 3.8 s** server offline · no data lost |
+| Firewall failover | fw-01 isolated → OSPF reroutes through fw-02, DMZ gateway moves (VRRP) | **≈ 4.6 s** |
+| Website failover | web-dmz01 cut → web-dmz02 takes `www.dc.lab` | **≈ 3.0 s** |
+| Backup & restore | nightly job + `backup.sh restore-test` (local and TrueNAS copies) | restored, row counts match |
 | Firewall policy | nftables default drop + host firewalls — allowed and forbidden flows checked rule by rule | allowed / blocked as designed |
 | Storage isolation | per-server iSCSI target, SAN VLAN not routed | other LUN denied |
 | Automated checks | `./scripts/tests.sh` | **27 / 27 passing** |

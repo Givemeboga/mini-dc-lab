@@ -91,7 +91,7 @@
 
   <!-- ============================================================ HEADER -->
   <text x="30" y="50" class="title">RAM+ Data Center — Network &amp; Building Architecture</text>
-  <text x="31" y="74" class="sub">Containerlab lab · 31 nodes · 35 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 20/20 tests</text>
+  <text x="31" y="74" class="sub">Containerlab lab · 32 nodes · 40 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 27/27 tests</text>
 
   <!-- Legend (top right) -->
   <g transform="translate(1418,30)">
@@ -149,7 +149,7 @@
     </g>
     <g transform="translate(0,402)">
       <rect x="46" y="0" width="34" height="26" rx="4" fill="#fff0f4"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#be185d">60</text>
-      <text x="88" y="17" class="pt" font-weight="600">DMZ</text><text x="170" y="17" class="ip">10.10.60.0/24</text><text x="262" y="12" class="ps">gw FW-01 .1</text><text x="262" y="23" class="ps">public web</text>
+      <text x="88" y="17" class="pt" font-weight="600">DMZ</text><text x="170" y="17" class="ip">10.10.60.0/24</text><text x="262" y="12" class="ps">gw VRRP .1 (FW)</text><text x="262" y="23" class="ps">www VIP .20</text>
     </g>
     <g transform="translate(0,438)">
       <rect x="46" y="0" width="34" height="26" rx="4" fill="#eafaf5"/><text x="63" y="17.5" text-anchor="middle" font-weight="700" fill="#0f766e">70</text>
@@ -163,8 +163,8 @@
   <line x1="46" y1="514" x2="334" y2="514" stroke="#e2e8f0"/>
   <text x="48" y="533" class="pt" font-weight="600">Routed /30 links · OSPF area 0 (hello 1 s / dead 3 s)</text>
   <text x="48" y="552" class="ps">WAN (edge ↔ ISP)</text><text x="160" y="552" class="ip">10.0.0.0/30 · 10.0.0.4/30</text>
-  <text x="48" y="570" class="ps">Edges ↔ FW-01</text><text x="160" y="570" class="ip">10.0.1.0/30 · 10.0.1.4/30</text>
-  <text x="48" y="588" class="ps">FW-01 ↔ cores</text><text x="160" y="588" class="ip">10.10.99.0/30 · .4/30</text>
+  <text x="48" y="570" class="ps">Edges ↔ FW-01/02</text><text x="160" y="570" class="ip">10.0.1.0/30 · .4 · .8 · .12</text>
+  <text x="48" y="588" class="ps">FW-01/02 ↔ cores</text><text x="160" y="588" class="ip">10.10.99.0/30 · .4 · .12 · .16</text>
   <line x1="46" y1="604" x2="334" y2="604" stroke="#e2e8f0"/>
   <text x="48" y="622" class="ps">Gateways: VRRP VIP .1 · load sharing: CORE-01 master 20/40,</text>
   <text x="48" y="636" class="ps">CORE-02 master 50/70 · real IPs .2 / .3 (VLAN 30: none)</text>
@@ -254,14 +254,20 @@
   <path d="M620 140 V255" class="wan"/>
   <path d="M840 140 V255" class="wan"/>
   <!-- edges <-> firewall, firewall <-> cores (routed /30, OSPF) -->
-  <path d="M628 289 L716 366" class="routed"/>
-  <path d="M832 289 L744 366" class="routed"/>
-  <path d="M716 405 L598 474" class="routed"/>
-  <path d="M744 405 L842 474" class="routed"/>
+  <path d="M628 289 L702 366" class="routed"/>
+  <path d="M832 289 L702 366" class="routed"/>
+  <path d="M702 405 L598 474" class="routed"/>
+  <path d="M702 405 L842 474" class="routed"/>
+  <!-- fw-02 (standby, OSPF cost 100): same links, dashed -->
+  <path d="M628 289 L758 366" class="routed" stroke-dasharray="5 4"/>
+  <path d="M832 289 L758 366" class="routed" stroke-dasharray="5 4"/>
+  <path d="M758 405 L598 474" class="routed" stroke-dasharray="5 4"/>
+  <path d="M758 405 L842 474" class="routed" stroke-dasharray="5 4"/>
   <text x="648" y="446" text-anchor="end" class="lk h" fill="#7c3aed">10.10.99.0/30</text>
   <text x="800" y="446" class="lk h" fill="#7c3aed">10.10.99.4/30</text>
   <!-- DMZ leg -->
-  <path d="M752 382 L988 362" class="dmz"/>
+  <path d="M710 366 Q760 330 988 360" class="dmz"/>
+  <path d="M780 386 L988 366" class="dmz" stroke-dasharray="5 4"/>
   <text x="865" y="366" text-anchor="middle" class="lk h" fill="#d6336c">DMZ leg · eth5</text>
   <path d="M1010 373 L975 386" class="dmz"/>
   <path d="M1030 373 L1068 386" class="dmz"/>
@@ -318,10 +324,11 @@
   <text x="878" y="278" class="r h">FRR · NAT · ISP B (backup)</text>
   <text x="878" y="290" class="ip h">WAN 10.0.0.5/30</text>
 
-  <use href="#firewall" x="708" y="365" width="44" height="40"/>
-  <text x="698" y="381" text-anchor="end" class="n h">FW-01</text>
-  <text x="698" y="393" text-anchor="end" class="r h">FRR OSPF + nftables</text>
-  <text x="698" y="405" text-anchor="end" class="ip h">default drop</text>
+  <use href="#firewall" x="680" y="365" width="44" height="40"/>
+  <use href="#firewall" x="736" y="365" width="44" height="40"/>
+  <text x="670" y="381" text-anchor="end" class="n h">FW-01 · FW-02</text>
+  <text x="670" y="393" text-anchor="end" class="r h">active · standby (cost 100)</text>
+  <text x="670" y="405" text-anchor="end" class="ip h">nftables · DMZ gw VRRP .1</text>
 
   <use href="#core" x="568" y="473" width="44" height="44"/>
   <text x="545" y="488" text-anchor="end" class="n h">CORE-01</text>
@@ -335,14 +342,14 @@
 
   <use href="#l2" x="988" y="351" width="64" height="22"/>
   <text x="1058" y="360" class="n">DMZ-SW</text>
-  <text x="1058" y="371" class="r">bridge</text>
+  <text x="1058" y="371" class="r">www VIP .20</text>
   <use href="#server" x="963" y="386" width="24" height="38"/>
   <text x="975" y="438" text-anchor="middle" class="n">WEB-DMZ01</text>
-  <text x="975" y="449" text-anchor="middle" class="r">nginx · via ISP A</text>
+  <text x="975" y="449" text-anchor="middle" class="r">nginx TLS · LB</text>
   <text x="975" y="460" text-anchor="middle" class="ip">10.10.60.10</text>
   <use href="#server" x="1056" y="386" width="24" height="38"/>
   <text x="1068" y="438" text-anchor="middle" class="n">WEB-DMZ02</text>
-  <text x="1068" y="449" text-anchor="middle" class="r">nginx · via ISP B</text>
+  <text x="1068" y="449" text-anchor="middle" class="r">nginx TLS · LB</text>
   <text x="1068" y="460" text-anchor="middle" class="ip">10.10.60.11</text>
 
   <!-- Rack A -->
@@ -448,7 +455,7 @@
   <text x="1550" y="650" text-anchor="middle" class="r">PostgreSQL 16</text>
   <text x="1550" y="662" text-anchor="middle" class="ip">10.10.10.52</text>
   <rect x="1200" y="678" width="420" height="24" rx="12" fill="#e2e8f0"/>
-  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 31 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
+  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 32 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
 
   <!-- ============================================================ LINK TYPES -->
   <rect x="1170" y="750" width="480" height="168" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
@@ -474,12 +481,12 @@
     <use href="#check" x="1188" y="1000" width="13" height="13"/><text x="1207" y="1011">VRRP load sharing + failover (≈2.8 s)</text>
     <use href="#check" x="1188" y="1024" width="13" height="13"/><text x="1207" y="1035">LACP on core &amp; ToR</text>
     <use href="#check" x="1188" y="1048" width="13" height="13"/><text x="1207" y="1059">MSTP · one root per VLAN group</text>
-    <use href="#check" x="1188" y="1072" width="13" height="13"/><text x="1207" y="1083">OSPF dynamic routing (1 s / 3 s)</text>
-    <use href="#check" x="1188" y="1096" width="13" height="13"/><text x="1207" y="1107">NAT + port-forward to the DMZ</text>
+    <use href="#check" x="1188" y="1072" width="13" height="13"/><text x="1207" y="1083">HTTPS load balancer · VIP ≈3.0 s</text>
+    <use href="#check" x="1188" y="1096" width="13" height="13"/><text x="1207" y="1107">Firewall pair · failover ≈4.6 s</text>
     <use href="#check" x="1420" y="976" width="13" height="13"/><text x="1439" y="987">nftables firewall · default drop</text>
     <use href="#check" x="1420" y="1000" width="13" height="13"/><text x="1439" y="1011">Isolated iSCSI SAN · per-host ACL</text>
-    <use href="#check" x="1420" y="1024" width="13" height="13"/><text x="1439" y="1035">DB host firewall (defense in depth)</text>
-    <use href="#check" x="1420" y="1048" width="13" height="13"/><text x="1439" y="1059">OOB management · VRF MGMT</text>
+    <use href="#check" x="1420" y="1024" width="13" height="13"/><text x="1439" y="1035">Host firewall on every server</text>
+    <use href="#check" x="1420" y="1048" width="13" height="13"/><text x="1439" y="1059">Nightly backups + restore test</text>
     <use href="#check" x="1420" y="1072" width="13" height="13"/><text x="1439" y="1083">Zabbix SNMP + ICMP · syslog</text>
     <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">MariaDB HA · failover ≈2.3 s</text>
   </g>

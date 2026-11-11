@@ -82,8 +82,8 @@ Four failures in a row, each restored automatically, each measured with a fast p
 | **fw-01 isolated** (all 5 cables down) | **fw-02**: OSPF reroutes through it, keepalived moves the DMZ gateway `10.10.60.1` |
 | **web-dmz01 cut** | web-dmz02 takes `www.dc.lab` (`10.10.60.20`) and serves the site alone |
 
-Measured: **ISP failover ≈ 0.2 s**, **gateway (VRRP) failover ≈ 2.8 s**; firewall and website numbers: see the
-testing guide.
+Measured: **ISP ≈ 0.2 s** · **core gateway (VRRP) ≈ 2.8 s** · **firewall ≈ 4.6 s** (OSPF dead interval 3 s +
+rerouting; connections open at that moment must reconnect) · **website ≈ 3.0 s**, no loss when web-dmz01 takes it back.
 
 ### Backups — `./scripts/backup.sh`
 
