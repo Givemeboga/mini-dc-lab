@@ -12,7 +12,7 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 ![TrueNAS](https://img.shields.io/badge/TrueNAS_SCALE-25.10-0095d5)
 ![MariaDB HA](https://img.shields.io/badge/MariaDB-HA_keepalived-c0765a)
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.0-d40000)
-![Tests](https://img.shields.io/badge/tests-27%2F27_passing-22a06b)
+![Tests](https://img.shields.io/badge/tests-33%2F33_passing-22a06b)
 
 *School project — ESPRIT, cybersecurity & cloud engineering*
 
@@ -30,12 +30,12 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 
 | | |
 |---|---|
-| **Scale** | 32 containers · 40 links · 3 buildings · out-of-band management network `10.10.10.0/24` |
+| **Scale** | 34 containers · 43 links · 3 buildings · out-of-band management network `10.10.10.0/24` |
 | **Internet edge** | 2 ISPs (NAT to the real Internet) · 2 FRR edge routers with NAT and port-forwards |
 | **Security** | **2 firewalls** (FRR + nftables, default drop; fw-02 standby) · host firewall on every server · no secrets in git (generated `lab.env` + lab CA) |
 | **Public website** | `https://www.dc.lab` — TLS, HTTP→HTTPS, load balancer over 2 DMZ servers behind a keepalived virtual IP |
 | **Core / access** | 2 Arista cEOS cores (VRRP load sharing, LACP, MSTP, OSPF) · 2 cEOS top-of-rack switches, dual-homed |
-| **Servers** | nginx intranet, Python API, BIND9 DNS, AD (IP/DNS), backup · **MariaDB primary + replica** behind a keepalived virtual IP |
+| **Servers** | intranet and API on **2 servers each** behind virtual IPs · primary + secondary DNS · backup · **MariaDB primary + replica** behind a keepalived virtual IP |
 | **Storage** | **TrueNAS SCALE 25.10** (KVM VM inside the lab): ZFS mirror, one iSCSI LUN per server with ACL, isolated SAN |
 | **Backups** | nightly job on backup01: database + switch configs, checksums, 7 restore points, copy on TrueNAS (ZFS snapshots), automatic restore test |
 | **Operations** | NOC with rsyslog from every switch · Zabbix 7 (SNMP + ICMP) on the OOB network |
@@ -47,12 +47,14 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 | ISP failover | each edge announces its default route in OSPF (cost 10 / 20) | **≈ 0.2 s** |
 | Gateway failover | VRRP on the cores, servers keep the `.1` gateway | **≈ 2.8 s** |
 | Database failover | MariaDB replication + keepalived virtual IP `10.10.20.35` | **≈ 2.3 s** crash · **≈ 3.8 s** server offline · no data lost |
-| Firewall failover | fw-01 isolated → OSPF reroutes through fw-02, DMZ gateway moves (VRRP) | **≈ 4.6 s** |
-| Website failover | web-dmz01 cut → web-dmz02 takes `www.dc.lab` | **≈ 3.0 s** |
+| Firewall failover | fw-01 isolated → BFD + OSPF reroute through fw-02, DMZ gateway moves, open connections kept (conntrackd) | **≈ 0.2 s**, TCP download uninterrupted |
+| Website failover | web-dmz01 cut → web-dmz02 takes `www.dc.lab` | **≈ 0.8 s** |
+| Intranet failover | web01 cut → web02 takes `intranet.dc.lab` (other rack) | **≈ 0.8 s** |
+| DNS failover | dns01 stopped → ad01 (secondary) answers | **≈ 40 ms** per lookup |
 | Backup & restore | nightly job + `backup.sh restore-test` (local and TrueNAS copies) | restored, row counts match |
 | Firewall policy | nftables default drop + host firewalls — allowed and forbidden flows checked rule by rule | allowed / blocked as designed |
 | Storage isolation | per-server iSCSI target, SAN VLAN not routed | other LUN denied |
-| Automated checks | `./scripts/tests.sh` | **27 / 27 passing** |
+| Automated checks | `./scripts/tests.sh` | **33 / 33 passing** |
 
 ## Quick start
 
@@ -62,7 +64,7 @@ Already installed? From the Ubuntu terminal:
 cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 27 passed, 0 failed
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 33 passed, 0 failed
 python3 scripts/zabbix-add-hosts.py   # Zabbix: http://localhost:8080 (Admin / password in lab.env)
 ```
 
@@ -90,7 +92,7 @@ containerlab destroy -t mini-dc.clab.yml --cleanup
 ## Repository at a glance
 
 ```
-mini-dc.clab.yml        topology (32 nodes)              deploy.sh   start the lab
+mini-dc.clab.yml        topology (34 nodes)              deploy.sh   start the lab
 configs/                switch, router, firewall      setup.sh    build the images (once)
 scripts/                boot scripts, tests,          images/     Dockerfiles
                         failover + TrueNAS tools      docs/       documentation + diagrams
@@ -103,4 +105,4 @@ Full file list: [Team workflow → Repository layout](docs/contributing.md#repos
 Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM): VRRP, LACP, MSTP, OSPF, ISP failover,
 firewall pair, NAT / port-forwards, firewall + host firewall policy, HTTPS load balancer, DNS, database high
 availability, backups with restore test, iSCSI on TrueNAS SCALE with per-server ACL, storage isolation, syslog —
-**27/27 automated checks passing**.
+**33/33 automated checks passing**.

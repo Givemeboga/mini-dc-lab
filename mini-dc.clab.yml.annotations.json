@@ -686,6 +686,32 @@
       "fontWeight": "bold",
       "textAlign": "center",
       "width": 180
+    },
+    {
+      "id": "nd-web02",
+      "text": "10.10.20.11\nnginx · intranet VIP .12",
+      "position": {
+        "x": 844,
+        "y": 950
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
+    },
+    {
+      "id": "nd-app02",
+      "text": "10.10.20.21\nAPI · app VIP .22",
+      "position": {
+        "x": 1337,
+        "y": 950
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
     }
   ],
   "freeShapeAnnotations": [
@@ -1367,6 +1393,26 @@
       },
       "icon": "dc-firewall",
       "groupId": "g-mmr",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "web02",
+      "position": {
+        "x": 909,
+        "y": 816
+      },
+      "icon": "dc-server",
+      "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "app02",
+      "position": {
+        "x": 1402,
+        "y": 816
+      },
+      "icon": "dc-server",
+      "groupId": "g-s2",
       "labelPosition": "bottom"
     }
   ],

@@ -150,6 +150,16 @@ topology:
       group: "Bat. informatique - Salle serveurs 2"
       mgmt-ipv4: 10.10.10.106
       exec: [bash /lab/scripts/init-host.sh]
+    web02:                           # second intranet server (other rack), virtual IP intranet.dc.lab 10.10.20.12
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.115
+      exec: [bash /lab/scripts/init-host.sh]
+    app02:                           # second API server (other rack), virtual IP app.dc.lab 10.10.20.22
+      kind: linux
+      group: "Bat. informatique - Salle serveurs 2"
+      mgmt-ipv4: 10.10.10.116
+      exec: [bash /lab/scripts/init-host.sh]
 
     # ------------------------------ Batiment informatique - Zone stockage (SAN, VLAN 30)
     storage-sw:
@@ -238,6 +248,8 @@ topology:
     - endpoints: ["fw-02:eth3", "core-01:eth8"]
     - endpoints: ["fw-02:eth4", "core-02:eth8"]
     - endpoints: ["fw-02:eth5", "dmz-sw:eth4"]
+    # Firewall state sync (conntrackd), direct cable
+    - endpoints: ["fw-01:eth6", "fw-02:eth6"]
     # DMZ
     - endpoints: ["fw-01:eth5", "dmz-sw:eth1"]
     - endpoints: ["dmz-sw:eth2", "web-dmz01:eth1"]
@@ -262,6 +274,8 @@ topology:
     - endpoints: ["tor-02:eth5", "db01:eth1"]
     - endpoints: ["tor-02:eth6", "ad01:eth1"]
     - endpoints: ["tor-02:eth7", "backup01:eth1"]
+    - endpoints: ["tor-02:eth8", "web02:eth1"]
+    - endpoints: ["tor-02:eth9", "app02:eth1"]
     # SAN - dedicated storage NICs
     - endpoints: ["storage-sw:eth1", "storage01:eth1"]
     - endpoints: ["storage-sw:eth2", "db01:eth2"]

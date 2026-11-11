@@ -30,20 +30,61 @@ case "$H" in
     for i in $(seq 1 180); do [ -e /sys/class/net/eth3 ] && [ -e /sys/class/net/eth4 ] && break; sleep 1; done
     ip link set eth3 mtu 1500; ip link set eth4 mtu 1500
     nft -f /lab/configs/nft/fw-01.nft            # same policy on both firewalls
-    # DMZ gateway 10.10.60.1 is a virtual IP: on fw-01, moves to fw-02 if fw-01 fails (VRRP 61)
+    # DMZ gateway 10.10.60.1 is a virtual IP: on fw-01, moves to fw-02 if fw-01 fails (VRRPv3 61, 0.2 s
+    # adverts); a returning fw-01 waits 10 s (preempt_delay) so its routes are complete before it takes it back
     [ "$H" = fw-01 ] && PRIO=110 || PRIO=100
     mkdir -p /etc/keepalived
     cat > /etc/keepalived/keepalived.conf <<CONF
 vrrp_instance DMZ_GW {
+    version 3
     state BACKUP
+    preempt_delay 10
     interface eth5
     virtual_router_id 61
     priority $PRIO
-    advert_int 1
+    advert_int 0.2
     virtual_ipaddress { 10.10.60.1/24 dev eth5 }
 }
 CONF
     keepalived -f /etc/keepalived/keepalived.conf </dev/null >/dev/null 2>&1
+    # conntrackd copies every connection to the other firewall over the eth6 cable and writes the
+    # other's straight into this kernel's table: after a failover, open connections keep working.
+    [ "$H" = fw-01 ] && { ME=10.10.99.21; PEER=10.10.99.22; } || { ME=10.10.99.22; PEER=10.10.99.21; }
+    cat > /etc/conntrackd.conf <<CONF
+Sync {
+    Mode FTFW {
+        DisableExternalCache On
+    }
+    UDP {
+        IPv4_address $ME
+        IPv4_Destination_Address $PEER
+        Port 3780
+        Interface eth6
+        Checksum on
+    }
+}
+General {
+    HashSize 8192
+    HashLimit 65535
+    LogFile off
+    Syslog off
+    LockFile /var/lock/conntrackd.lock
+    UNIX {
+        Path /var/run/conntrackd.ctl
+    }
+    NetlinkBufferSize 2097152
+    NetlinkBufferSizeMaxGrowth 8388608
+    Filter From Userspace {
+        Address Ignore {
+            IPv4_address 127.0.0.1
+            IPv4_address $ME
+            IPv4_address $PEER
+        }
+    }
+}
+CONF
+    mkdir -p /var/lock /var/run
+    conntrackd -d -C /etc/conntrackd.conf </dev/null >/dev/null 2>&1
     ;;
 esac
 echo "[init-router] $H done"

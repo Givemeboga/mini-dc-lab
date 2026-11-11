@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Demo / verification script. Run from the lab folder after deploy:
 #   ./scripts/tests.sh            -> all functional tests
-#   ./scripts/tests.sh failover   -> ISP, core, firewall and website failover demo
+#   ./scripts/tests.sh failover   -> ISP, core, firewall, website, intranet and DNS failover demo
 #   ./scripts/tests.sh loadshare  -> core load sharing demo (which core routes which VLAN)
 cd "$(dirname "$0")/.."
 P=clab-mini-dc
@@ -25,12 +25,15 @@ functional() {
   eos core-01 "show ip route 0.0.0.0/0"
   echo "-- firewalls: OSPF neighbors fw-01 / fw-02, DMZ gateway owner"
   echo "   fw-01: $(x fw-01 vtysh -c 'show ip ospf neighbor' | grep -c Full) Full · fw-02: $(x fw-02 vtysh -c 'show ip ospf neighbor' | grep -c Full) Full"
-  echo "   10.10.60.1 on: $(for f in fw-01 fw-02; do x $f ip -4 addr show eth5 | grep -q '10.10.60.1/' && echo $f; done)"
+  echo "   10.10.60.1 on: $(for f in fw-01 fw-02; do x $f ip -4 addr show eth5 | grep -q '10.10.60.1/' && echo $f; done)" \
+       "· BFD sessions up on fw-01: $(x fw-01 vtysh -c 'show bfd peers brief' | grep -ci ' up ')"
 
   echo; echo "== Connectivity"
   check "web01 -> its gateway (VRRP VIP)"            pass x web01 ping -c1 -W1 10.10.20.1
   check "web01 -> db01 (same VLAN, other rack)"      pass x web01 ping -c1 -W1 10.10.20.30
   check "pc-01 -> web01 intranet (HTTP allowed)"     pass x pc-01 curl -sf -m3 http://10.10.20.10
+  check "pc-01 -> intranet.dc.lab (virtual IP)"       pass x pc-01 curl -sf -m3 http://intranet.dc.lab
+  check "pc-01 -> app.dc.lab:8080 (virtual IP)"       pass x pc-01 curl -sf -m3 http://app.dc.lab:8080/index.json
   check "pc-01 -> db01:3306 (blocked, host firewall)" block x pc-01 nc -z -w2 10.10.20.30 3306
   check "pc-01 -> db02:3306 (blocked, host firewall)" block x pc-01 nc -z -w2 10.10.20.31 3306
   check "backup01 -> app01:8080 (blocked, host firewall)" block x backup01 nc -z -w2 10.10.20.20 8080
@@ -40,6 +43,7 @@ functional() {
   echo; echo "== DNS"
   check "dns01 resolves db01.dc.lab"                 pass x web01 sh -c 'dig +short db01.dc.lab | grep -q 10.10.20.30'
   check "dns01 forwards Internet names"              pass x web01 sh -c 'dig +short example.com | grep -q .'
+  check "ad01 (secondary DNS) holds the dc.lab zone" pass x web01 sh -c 'dig +short @10.10.20.50 db01.dc.lab | grep -q 10.10.20.30'
 
   echo; echo "== DMZ & firewall"
   check "Internet -> ISP A -> https://www.dc.lab (valid TLS)" pass x isp-a curl -sf -m5 $WWW:10.0.0.1 https://www.dc.lab
@@ -64,9 +68,12 @@ functional() {
   echo; echo "== Firewall pair"
   check "fw-02 standby: OSPF Full with 2 edges + 2 cores" pass x fw-02 sh -c "vtysh -c 'show ip ospf neighbor' | grep -c Full | grep -qx 4"
   check "fw-01 owns the DMZ gateway 10.10.60.1"      pass x fw-01 sh -c "ip -4 addr show eth5 | grep -q '10.10.60.1/'"
+  check "BFD up on fw-01 (2 edges + 2 cores)"        pass x fw-01 sh -c "vtysh -c 'show bfd peers brief' | grep -ci ' up ' | grep -qx 4"
+  check "fw-02 holds fw-01's connections (conntrackd)" pass x fw-02 sh -c "conntrack -L 2>/dev/null | grep -q 'dport=3306'"
 
   echo; echo "== NOC"
   check "syslog01 receives logs from the switches"   pass x syslog01 sh -c 'ls /var/log/remote/ | grep -qi core'
+  check "noc-ws (2nd collector) receives them too"   pass x noc-ws sh -c 'ls /var/log/remote/ | grep -qi core'
 
   echo; echo "Result: $ok passed, $ko failed"
 }
@@ -98,19 +105,32 @@ no shutdown" >/dev/null; echo "   core-01 Vlan20 restored (preempts back to MAST
   echo "   web01 ping summary: $(x web01 grep 'packet loss' /tmp/vrrp.log)"
   echo "   (a few lost pings = the failover time, then traffic continues through core-02)"
 
-  echo; echo "== Firewall failover: cut all of FW-01's cables while web01 pings the Internet"
+  echo; echo "== Firewall failover: cut all of FW-01's cables while web01 pings the Internet and downloads from ISP A"
+  x isp-a sh -c 'pkill -x iperf3; iperf3 -s -D'
   docker exec $P-web01 sh -c 'ping -i 0.2 -c 100 -W 1 1.1.1.1 > /tmp/fw.log 2>&1' &
+  docker exec $P-web01 sh -c 'iperf3 -c 10.0.0.2 -R -t 15 -b 20M -i 1 > /tmp/iperf.log 2>&1' &
   sleep 3
   for i in 1 2 3 4 5; do x fw-01 ip link set eth$i down; done; echo "   fw-01 isolated at $(date +%T)"
   sleep 6
   echo "   default route on core-01: $(eos core-01 'show ip route 0.0.0.0/0' | grep -o 'via 10.10.99.[0-9]*' | head -1) (10.10.99.13 = fw-02)"
   echo "   DMZ gateway now on: $(x fw-02 ip -4 addr show eth5 | grep -q '10.10.60.1/' && echo fw-02)"
   echo "   website during the outage: $(x isp-a curl -s -o /dev/null -w '%{http_code}' -m5 $WWW:10.0.0.1 https://www.dc.lab)"
+  # graceful return: fw-01 advertises maximum cost until its 4 adjacencies are up, then takes the traffic back
+  x fw-01 vtysh -c 'configure terminal' -c 'router ospf' -c 'max-metric router-lsa administrative' >/dev/null
   for i in 1 2 3 4 5; do x fw-01 ip link set eth$i up; done
   x fw-01 sh -c 'ip link set eth3 mtu 1500; ip link set eth4 mtu 1500'
-  echo "   fw-01 restored (takes the traffic back once OSPF is Full again)"
+  for i in $(seq 30); do [ "$(x fw-01 vtysh -c 'show ip ospf neighbor' | grep -c Full)" -ge 4 ] && break; sleep 1; done
+  sleep 2
+  x fw-01 vtysh -c 'configure terminal' -c 'router ospf' -c 'no max-metric router-lsa administrative' >/dev/null
+  echo "   fw-01 restored gracefully (high OSPF cost until its 4 neighbors were Full, then it took the traffic back)"
   wait
   echo "   web01 ping summary: $(x web01 grep 'packet loss' /tmp/fw.log)"
+  if x web01 grep -q 'iperf Done' /tmp/iperf.log; then
+    echo "   TCP download through the firewalls: survived the failover (conntrackd)," \
+         "$(x web01 grep -c ' 0.00 bits/sec' /tmp/iperf.log) s without data"
+  else
+    echo "   TCP download through the firewalls: BROKEN ($(x web01 tail -1 /tmp/iperf.log))"
+  fi
 
   echo; echo "== Website failover: cut web-dmz01 (owner of www.dc.lab) while web01 pings the site's virtual IP"
   docker exec $P-web01 sh -c 'ping -i 0.2 -c 60 -W 1 10.10.60.20 > /tmp/www.log 2>&1' &
@@ -125,6 +145,23 @@ no shutdown" >/dev/null; echo "   core-01 Vlan20 restored (preempts back to MAST
   echo "   web-dmz01 restored (takes the virtual IP back)"
   wait
   echo "   web01 ping summary: $(x web01 grep 'packet loss' /tmp/www.log)"
+
+  echo; echo "== Intranet failover: cut web01 (rack A) while pc-01 pings intranet.dc.lab (10.10.20.12)"
+  docker exec $P-pc-01 sh -c 'ping -i 0.2 -c 50 -W 1 10.10.20.12 > /tmp/intra.log 2>&1' &
+  sleep 3
+  x web01 ip link set eth1 down; echo "   web01 cut at $(date +%T)"
+  sleep 3
+  echo "   intranet now served by: $(x pc-01 curl -s -m3 http://intranet.dc.lab | grep -o '<h1[^>]*>[^<]*' | sed 's/.*>//')"
+  x web01 sh -c 'ip link set eth1 up; ip route replace default via 10.10.20.1'
+  echo "   web01 restored (takes the virtual IP back)"
+  wait
+  echo "   pc-01 ping summary: $(x pc-01 grep 'packet loss' /tmp/intra.log)"
+
+  echo; echo "== DNS failover: stop the primary DNS (dns01) and resolve a name from web01"
+  x dns01 pkill -x named; sleep 1
+  t0=$(date +%s%N); ans=$(x web01 getent hosts db01.dc.lab | awk '{print $1}'); t1=$(date +%s%N)
+  echo "   db01.dc.lab -> ${ans:-NO ANSWER} in $(( (t1 - t0) / 1000000 )) ms (answered by ad01, the secondary)"
+  x dns01 named -u bind -4; echo "   dns01 restarted"
 }
 
 # Unicast packets a core received on some ports (cEOS does not answer traceroute, so we count packets)

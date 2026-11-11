@@ -35,7 +35,7 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
 | | CORE-01 / CORE-02 | `core-01`, `core-02` | **cEOS** |
 | DMZ (VLAN 60) | DMZ-SW, WEB-DMZ01/02 | `dmz-sw` (Linux bridge), `web-dmz01/02` (nginx TLS + load balancer, keepalived) | dc-host |
 | Salle serveurs 1 | TOR-01, WEB01, APP01, DNS01, DB02 | `tor-01` (cEOS), `web01` (nginx), `app01` (Python API), `dns01` (BIND9), `db02` (MariaDB replica) | dc-host |
-| Salle serveurs 2 | TOR-02, DB01, AD01, BACKUP01 | `tor-02` (cEOS), `db01` (MariaDB primary), `ad01`, `backup01` (backup job) | dc-host |
+| Salle serveurs 2 | TOR-02, DB01, AD01, BACKUP01, WEB02, APP02 | `tor-02` (cEOS), `db01` (MariaDB primary), `ad01` (secondary DNS), `backup01` (backup job), `web02` / `app02` (second intranet / API server) | dc-host |
 | Zone stockage | STORAGE-SW, STORAGE01 | `storage-sw` (bridge), `storage01` (**TrueNAS SCALE** VM under KVM) | dc-truenas |
 | Bât. logistique | NOC, users | `noc-sw`, `user-sw` (bridges with STP, dual-homed), `noc-ws`, `syslog01`, `pc-01`, `pc-02` | dc-host |
 | | Management | containerlab **OOB network 10.10.10.0/24** + `admin-pc` | dc-host |
@@ -46,8 +46,8 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
 
 | VLAN / segment | Network | Gateway | Hosts |
 |---|---|---|---|
-| OOB management (VLAN 10 role) | 10.10.10.0/24 | .1 | cores .11/.12, ToRs .21/.22, edges .31/.32, fw-01 .40, fw-02 .41, Zabbix .50–.52, bridges .71–.74, servers .100–.114 |
-| 20 Servers | 10.10.20.0/24 | VRRP .1 (core-01 .2 master, core-02 .3) | web01 .10, app01 .20, db01 .30, db02 .31, **DB virtual IP .35** (`db.dc.lab`), dns01 .40, ad01 .50 |
+| OOB management (VLAN 10 role) | 10.10.10.0/24 | .1 | cores .11/.12, ToRs .21/.22, edges .31/.32, fw-01 .40, fw-02 .41, Zabbix .50–.52, bridges .71–.74, servers .100–.116 |
+| 20 Servers | 10.10.20.0/24 | VRRP .1 (core-01 .2 master, core-02 .3) | web01 .10, web02 .11, **intranet VIP .12**, app01 .20, app02 .21, **app VIP .22**, db01 .30, db02 .31, **DB virtual IP .35** (`db.dc.lab`), dns01 .40, ad01 .50 |
 | 30 Storage (not routed) | 10.10.30.0/24 | none | storage01 .10, db01 .30, backup01 .40 |
 | 40 Backup | 10.10.40.0/24 | VRRP .1 | backup01 .10 |
 | 50 Users | 10.10.50.0/24 | VRRP .1 | pc-01 .101, pc-02 .102 |
@@ -58,6 +58,7 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
 | FW-02 ↔ cores | 10.10.99.12/30, .16/30 | — | fw-02 .13/.17, core-01 .14, core-02 .18 (OSPF cost 100) |
 | Edges ↔ FW-01 | 10.0.1.0/30, .4/30 | — | edge-r1 .1, edge-r2 .5, fw-01 .2/.6 |
 | Edges ↔ FW-02 | 10.0.1.8/30, .12/30 | — | edge-r1 .9, edge-r2 .13, fw-02 .10/.14 (OSPF cost 100) |
+| FW-01 ↔ FW-02 sync | 10.10.99.20/30 | — | fw-01 .21, fw-02 .22 — conntrackd only, not routed |
 | WAN | 10.0.0.0/30, .4/30 | — | edge-r1 .1 ↔ isp-a .2, edge-r2 .5 ↔ isp-b .6 |
 
 ## How each feature is implemented
@@ -72,11 +73,23 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
   DMZ → Internet 80/443/53; everything else counted + logged as `FW-01 DROP`. **fw-02** has the same five
   connections (both edges, both cores, DMZ) with OSPF cost 100 on every link, so all traffic uses fw-01 while it is
   alive; if fw-01 fails, OSPF reroutes through fw-02 within the 3 s dead interval and keepalived (VRRP 61) moves the
-  DMZ gateway `10.10.60.1` to it. Connections open at that moment must reconnect (no state sync between the two).
+  DMZ gateway `10.10.60.1` to it. **BFD** (300 ms × 3) on every OSPF link between edges, firewalls and cores detects
+  the failure in < 1 s instead of the 3 s OSPF dead interval, the route recalculation timers are shortened
+  (SPF hold 50–500 ms instead of up to 5 s), and the DMZ gateway uses VRRPv3 with 0.2 s adverts. Measured: ≈ 0.2 s.
+  fw-01 comes back with maximum OSPF cost until all its adjacencies are up, so its return is lossless.
+  **conntrackd** copies every connection between the two firewalls over a dedicated cable (eth6), writing the other
+  firewall's connections straight into the kernel table, so connections open during a failover keep working.
 - **Public website** (`start_dmz_web` in `init-host.sh`) — `www.dc.lab` = virtual IP `10.10.60.20`, owned by
   web-dmz01 and moved to web-dmz02 by keepalived (VRRP 62) if web-dmz01 or its nginx fails. nginx terminates TLS
   (certificate from the lab's own CA, `pki/`), redirects HTTP to HTTPS, adds HSTS, and load-balances round robin over
   both servers' backend port 8080 (a dead backend is skipped after 0.5 s and avoided for 10 s).
+- **No single server for internal services** — the intranet and the API each run on two servers in different
+  racks (web01 / web02, app01 / app02) behind a keepalived virtual IP (`start_vip`, VRRPv3 0.2 s adverts, health check
+  every second): `intranet.dc.lab` = 10.10.20.12, `app.dc.lab` = 10.10.20.22. DNS: dns01 is the primary, **ad01 a
+  secondary** that copies the `dc.lab` zone (zone transfer + NOTIFY); every host lists both, with a 1 s timeout. The
+  switches log to two collectors (syslog01 and noc-ws).
+- **Remaining single point of failure: storage01.** A second TrueNAS needs another 8 GB of RAM that the laptop does not
+  have. Mitigations: ZFS mirror (disk failure), snapshots, backups also kept on backup01's own disk.
 - **Host firewalls** (`role_fw` in `init-host.sh`) — every server and PC drops incoming connections by default
   and opens only its role's ports (web01 80, app01 8080, dns01 53, db01/02 3306 + VRRP, syslog01 514, DMZ 80/443),
   each to the networks that need it. This enforces the user policy that cEOS-lab cannot (SVI ACLs).
@@ -127,6 +140,7 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
 | FW 10.10.99.254 | routed /30 links to each core | lets OSPF use both cores |
 | STORAGE01 | **TrueNAS SCALE** VM (KVM inside the container) | required by the course |
 | DB01 alone | DB01 + **DB02** replica with a keepalived virtual IP | database high availability |
-| FW-01 alone | FW-01 + **FW-02** standby (OSPF cost, VRRP DMZ gateway) | no single firewall to fail |
+| FW-01 alone | FW-01 + **FW-02** standby (OSPF cost, VRRP DMZ gateway, BFD, conntrackd) | no single firewall to fail |
+| WEB01, APP01, DNS01 alone | WEB02, APP02 + virtual IPs, AD01 = secondary DNS | no single server for an internal service |
 | One DMZ web server per ISP | HTTPS **load balancer** on both servers behind one virtual IP | TLS, failover, both servers used |
 | AD01 (Samba AD) | IP + DNS only | optional; install `samba` inside ad01 if needed |

@@ -4,6 +4,7 @@
 #   outside = eth1 (edge-r1), eth2 (edge-r2)
 #   inside  = eth3 (core-01), eth4 (core-02)
 #   dmz     = eth5 (VLAN 60)
+#   sync    = eth6 (direct cable to the other firewall: conntrackd)
 #   eth0    = containerlab OOB management, never forwarded
 # Default: DROP. Everything allowed is listed explicitly below.
 # =====================================================================
@@ -12,9 +13,10 @@ flush ruleset
 define OUTSIDE  = { "eth1", "eth2" }
 define INSIDE   = { "eth3", "eth4" }
 define DMZ      = "eth5"
+define SYNC     = "eth6"
 define WWW      = 10.10.60.20   # public website: load balancer virtual IP (web-dmz01/02)
 define DB01     = 10.10.20.35   # MariaDB virtual IP (keepalived: db01 primary, db02 standby)
-define DNS01    = 10.10.20.40
+define DNS      = { 10.10.20.40, 10.10.20.50 }   # dns01 primary, ad01 secondary
 
 table inet filter {
 
@@ -26,6 +28,8 @@ table inet filter {
         ip protocol 89 accept                      comment "OSPF"
         ip protocol icmp accept                    comment "ping the firewall"
         iifname $DMZ ip protocol 112 accept        comment "VRRP: DMZ gateway shared by fw-01/fw-02"
+        iifname $SYNC udp dport 3780 accept        comment "conntrackd: connection table sync"
+        udp dport 3784 accept                      comment "BFD (fast OSPF failure detection)"
         iifname "eth0" tcp dport 22 accept         comment "SSH from OOB only"
         counter comment "dropped to firewall"
     }
@@ -46,7 +50,7 @@ table inet filter {
 
         # --- DMZ -> Inside: only the two flows the web servers need ----------
         iifname $DMZ oifname $INSIDE ip daddr $DB01  tcp dport 3306 counter accept comment "web -> MariaDB"
-        iifname $DMZ oifname $INSIDE ip daddr $DNS01 meta l4proto { tcp, udp } th dport 53 accept comment "DNS"
+        iifname $DMZ oifname $INSIDE ip daddr $DNS meta l4proto { tcp, udp } th dport 53 accept comment "DNS"
 
         # --- DMZ -> Internet: updates only ---------------------------------
         iifname $DMZ oifname $OUTSIDE tcp dport { 80, 443 } accept

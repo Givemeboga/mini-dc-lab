@@ -20,12 +20,12 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 32 nodes, 40 links, mgmt network `dc-oob` 10.10.10.0/24 |
+| `mini-dc.clab.yml` | Topology: 34 nodes, 43 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
 | `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP load sharing: core-01 VLAN 20/40, core-02 VLAN 50/70, MSTP, OSPF), tor-01/02 (L2) |
-| `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2, fw-01 (active) and fw-02 (standby, OSPF cost 100) |
+| `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2, fw-01 (active) and fw-02 (standby, OSPF cost 100); bfdd on, `ip ospf bfd` on edge/fw/core links |
 | `configs/nft/*.nft` | nftables: firewall policy (fw-01.nft, loaded on both firewalls), edge NAT/port-forward 80/443 → www VIP, ISP NAT |
-| `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft, keepalived DMZ gateway VRRP 61) |
+| `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft, keepalived DMZ gateway VRRPv3 61, conntrackd over eth6) |
 | `scripts/init-bridge.sh` | exec for Linux-bridge "switches" (`stp` arg for dual-homed ones) |
 | `scripts/init-host.sh` | exec for every server/PC; role chosen by hostname (IPs, nginx, BIND, MariaDB HA, HTTPS LB on web-dmz01/02 + VRRP 62, host firewall `role_fw`, backup scheduler). `init-host.sh <function>` re-runs one function |
 | `scripts/gen-secrets.sh` | creates git-ignored `lab.env` (random passwords) + `pki/` (lab CA, www.dc.lab cert); run by deploy.sh |
@@ -34,7 +34,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
 | `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
 | `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
-| `scripts/tests.sh` | 27 functional checks; `failover` = ISP + VRRP + firewall + website failover; `loadshare` = core load sharing |
+| `scripts/tests.sh` | 33 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
 | `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin / ZBX_ADMIN_PASS from lab.env, changes the default on first run) |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |
@@ -44,7 +44,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 ```bash
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
-./scripts/tests.sh                                   # expect 27 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
+./scripts/tests.sh                                   # expect 33 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
 ./scripts/backup.sh run | restore-test               # backup now / prove it restores (local + TrueNAS copy)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password
 ./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈2.3 s, server offline ≈3.8 s
@@ -100,7 +100,21 @@ docker exec -it clab-mini-dc-fw-01 vtysh
 - OpenSSL `-subj`: a bare `+` splits an RDN (`RAM+` silently produced no certificate) → write `RAM\+`.
 - Secrets live in git-ignored `lab.env` / `pki/`; the DMZ servers and PCs `umount /lab` after boot, so
   `init-host.sh <function>` cannot be re-run there (redeploy instead). Tests read passwords from `lab.env`.
-- fw-01 and fw-02 have no conntrack sync: connections open during a firewall failover must reconnect.
+- fw-01/fw-02 sync connections with conntrackd (FTFW, `DisableExternalCache On` = written straight into the kernel
+  table, no commit step needed) over the eth6 cable 10.10.99.20/30; nft input must allow udp 3780 there and udp 3784 (BFD).
+- Redundant internal services: `start_vip` in init-host.sh (keepalived VRRPv3, advert 0.2 s): intranet 10.10.20.12 (web01/02,
+  VRRP 21), app 10.10.20.22 (app01/02, VRRP 22), www 10.10.60.20 (VRRP 62); fw DMZ gateway VRRP 61. VRIDs must stay
+  unique per VLAN (cores use 20/40/50/70, DB 35).
+- ad01 = secondary DNS (slave of dns01); resolv.conf lists both with `options timeout:1 attempts:2`.
+- Cutting a host's eth1 (`ip link set down`) deletes its default route: restore with `ip route replace default via …`.
+- keepalived: one directive per line. `global_defs { a; b; vrrp_version 3 }` on one line was silently ignored (adverts
+  stayed VRRPv2 1 s) → `version 3` inside each vrrp_instance. Restart = pkill + wait until the old process is gone
+  (it takes ~1 s; a new one started earlier exits because the pid file still exists).
+- Slow OSPF reroute was the SPF hold timer (5 s max by default on cEOS and FRR), not detection → cores
+  `timers spf delay initial 0 50 500` + lsa timers, FRR `timers throttle spf 0 50 500`. Firewall failover 0.2 s.
+- Bringing fw-01 back: `max-metric router-lsa administrative` until its 4 adjacencies are Full, then remove it
+  (tests.sh does this); FRR also has `max-metric router-lsa on-startup 20`, keepalived DMZ_GW `preempt_delay 10`.
+- BIND secondary with no zone retries after 500 s by default → `min-retry-time 30` on ad01.
 - Writing to the iSCSI LUN from a container: no kernel initiator in WSL → `qemu-img convert -n … iscsi://` /
   `qemu-img dd` (qemu-block-extra) in dc-host.
 

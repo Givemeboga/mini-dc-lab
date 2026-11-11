@@ -14,7 +14,7 @@ cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
                                       # after a reboot it offers to destroy the old copy: answer y
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 27 passed, 0 failed
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 33 passed, 0 failed
 python3 scripts/zabbix-add-hosts.py   # re-register the Zabbix hosts (after every deploy)
 ```
 
@@ -33,8 +33,8 @@ virtual disks, so nothing has to be reinstalled.
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Start the lab (5–8 min) |
-| `./scripts/tests.sh` | 27 functional checks |
-| `./scripts/tests.sh failover` | ISP, core gateway, firewall and website failover demo |
+| `./scripts/tests.sh` | 33 functional checks |
+| `./scripts/tests.sh failover` | ISP, core gateway, firewall, website, intranet and DNS failover demo |
 | `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
 | `./scripts/db-failover.sh status` | Database: who owns the virtual IP, is the standby in sync |
 | `./scripts/db-failover.sh` | Crash MariaDB on the primary and measure the takeover |
@@ -73,17 +73,20 @@ docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"
 
 ### Network — `./scripts/tests.sh failover`
 
-Four failures in a row, each restored automatically, each measured with a fast ping or HTTPS requests:
+Six failures in a row, each restored automatically, each measured with a fast ping or HTTPS requests:
 
 | Failure | What takes over |
 |---|---|
 | ISP A link cut | the default route through edge-r2 (OSPF) |
 | core-01's VLAN 20 interface shut | core-02 takes the server gateway (VRRP) |
-| **fw-01 isolated** (all 5 cables down) | **fw-02**: OSPF reroutes through it, keepalived moves the DMZ gateway `10.10.60.1` |
+| **fw-01 isolated** (5 cables down) | **fw-02**: BFD + OSPF reroute through it, the DMZ gateway moves, a TCP download keeps running (conntrackd) |
 | **web-dmz01 cut** | web-dmz02 takes `www.dc.lab` (`10.10.60.20`) and serves the site alone |
+| **web01 cut** | web02 takes `intranet.dc.lab` (`10.10.20.12`) |
+| **dns01 stopped** | names are answered by ad01, the secondary DNS |
 
-Measured: **ISP ≈ 0.2 s** · **core gateway (VRRP) ≈ 2.8 s** · **firewall ≈ 4.6 s** (OSPF dead interval 3 s +
-rerouting; connections open at that moment must reconnect) · **website ≈ 3.0 s**, no loss when web-dmz01 takes it back.
+Measured: **ISP ≈ 0.2 s** · **core gateway (VRRP) ≈ 2.8 s** · **firewall ≈ 0.2 s** (BFD), and a TCP download running
+through it never stops (conntrackd) · **website ≈ 0.8 s** · **intranet ≈ 0.8 s** · **DNS**: lookups answered by ad01 in
+≈ 40 ms. fw-01 is brought back *gracefully* (maximum OSPF cost until its adjacencies are up), so the return costs nothing.
 
 ### Backups — `./scripts/backup.sh`
 
