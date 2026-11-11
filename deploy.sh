@@ -16,6 +16,10 @@ if [ -n "$(docker ps -aq --filter "name=^$P-")" ]; then
   esac
 fi
 
+# Per-machine secrets (random passwords + TLS certificates), created on the first deploy, never committed.
+bash scripts/gen-secrets.sh || exit 1
+set -a; . ./lab.env; set +a                     # the topology reads ${ZBX_DB_PASS} etc.
+
 (
   declare -A fixed
   for _ in $(seq 1 120); do                       # watch for up to 20 minutes

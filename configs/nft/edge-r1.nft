@@ -1,12 +1,12 @@
 #!/usr/sbin/nft -f
-# EDGE-R1: NAT toward ISP-A + publishes the DMZ web server 10.10.60.10 on port 80
+# EDGE-R1: NAT toward ISP-A + publishes the public website (DMZ virtual IP 10.10.60.20 = www.dc.lab) on 80/443
 flush ruleset
 
 table ip nat {
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
-        # Port-forward: public IP of this edge, TCP 80 -> DMZ web server
-        iifname "eth1" tcp dport 80 counter dnat to 10.10.60.10
+        # Port-forward: public IP of this edge, TCP 80/443 -> DMZ load balancer virtual IP
+        iifname "eth1" tcp dport { 80, 443 } counter dnat to 10.10.60.20
     }
     chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
@@ -14,7 +14,7 @@ table ip nat {
         oifname "eth1" masquerade
         # Port-forwarded traffic is also source-NATed so the reply comes back
         # through THIS edge (otherwise it would leave via the other ISP).
-        oifname "eth2" ct status dnat masquerade
+        oifname { "eth2", "eth3" } ct status dnat masquerade
     }
 }
 

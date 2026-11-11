@@ -5,7 +5,7 @@
 > [!TIP]
 > For demos and after every change, follow the **[testing guide (PDF)](testing-guide/RAM+_Data_Center_Testing_Guide.pdf)**:
 > one command per feature with the expected result and why it matters, rule-by-rule firewall testing,
-> the 20 automated checks explained and a pass/fail checklist.
+> the automated checks explained and a pass/fail checklist.
 
 ## Start and stop
 
@@ -14,7 +14,7 @@ cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
                                       # after a reboot it offers to destroy the old copy: answer y
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 20 passed, 0 failed
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 27 passed, 0 failed
 python3 scripts/zabbix-add-hosts.py   # re-register the Zabbix hosts (after every deploy)
 ```
 
@@ -33,15 +33,18 @@ virtual disks, so nothing has to be reinstalled.
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Start the lab (5–8 min) |
-| `./scripts/tests.sh` | 20 functional checks |
-| `./scripts/tests.sh failover` | ISP + VRRP gateway failover demo |
+| `./scripts/tests.sh` | 27 functional checks |
+| `./scripts/tests.sh failover` | ISP, core gateway, firewall and website failover demo |
 | `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
 | `./scripts/db-failover.sh status` | Database: who owns the virtual IP, is the standby in sync |
 | `./scripts/db-failover.sh` | Crash MariaDB on the primary and measure the takeover |
 | `./scripts/db-failover.sh server` | Same, but the whole primary server goes offline |
 | `./scripts/db-failover.sh restore` | Make the failed database server the new standby |
+| `./scripts/backup.sh run` | Back up now: database + switch configs → backup01 + TrueNAS LUN |
+| `./scripts/backup.sh list` | Restore points stored on backup01 and the job log |
+| `./scripts/backup.sh restore-test` | Prove the last backup restores (local copy and TrueNAS copy) |
 | `python3 scripts/zabbix-add-hosts.py` | Register all devices in Zabbix |
-| `python3 scripts/truenas-setup.py` | (Re)apply the TrueNAS pool / zvols / iSCSI configuration |
+| `python3 scripts/truenas-setup.py` | (Re)apply the TrueNAS pool / zvols / iSCSI / snapshot configuration |
 | `containerlab inspect -t mini-dc.clab.yml` | List nodes, state and management IPs |
 | `containerlab destroy -t mini-dc.clab.yml --cleanup` | Stop and remove the lab |
 
@@ -50,9 +53,10 @@ virtual disks, so nothing has to be reinstalled.
 | Device | How |
 |---|---|
 | cEOS (cores, ToRs) | `ssh admin@clab-mini-dc-core-01` (password `admin`) or `docker exec -it clab-mini-dc-core-01 Cli` |
-| FRR routers / firewall | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing) · `... sh` then `nft list ruleset` |
+| FRR routers / firewalls | `docker exec -it clab-mini-dc-fw-01 vtysh` (routing; same for `fw-02`) · `... sh` then `nft list ruleset` |
 | Servers / PCs | `docker exec -it clab-mini-dc-web01 bash` |
-| Zabbix | <http://localhost:8080> — `Admin` / `zabbix` |
+| Zabbix | <http://localhost:8080> — `Admin` / `ZBX_ADMIN_PASS` from `lab.env` |
+| Public website | `docker exec clab-mini-dc-isp-a curl --cacert /lab/pki/ca.crt --resolve www.dc.lab:443:10.0.0.1 https://www.dc.lab` |
 | TrueNAS web UI | <https://localhost:8443> — `truenas_admin` |
 | TrueNAS VM console | <http://localhost:6080/vnc_lite.html?scale=true> |
 | Graphical view | VS Code → Containerlab icon → right-click `mini-dc` → **Graph (TopoViewer)** |
@@ -69,8 +73,26 @@ docker exec clab-mini-dc-fw-01 vtysh -c "show ip route"
 
 ### Network — `./scripts/tests.sh failover`
 
-Cuts ISP A, then shuts the VRRP master's VLAN 20 interface, while web01 pings 5 times per second; both are restored
-automatically. Measured: **ISP failover ≈ 0.2 s**, **gateway (VRRP) failover ≈ 2.8 s**.
+Four failures in a row, each restored automatically, each measured with a fast ping or HTTPS requests:
+
+| Failure | What takes over |
+|---|---|
+| ISP A link cut | the default route through edge-r2 (OSPF) |
+| core-01's VLAN 20 interface shut | core-02 takes the server gateway (VRRP) |
+| **fw-01 isolated** (all 5 cables down) | **fw-02**: OSPF reroutes through it, keepalived moves the DMZ gateway `10.10.60.1` |
+| **web-dmz01 cut** | web-dmz02 takes `www.dc.lab` (`10.10.60.20`) and serves the site alone |
+
+Measured: **ISP failover ≈ 0.2 s**, **gateway (VRRP) failover ≈ 2.8 s**; firewall and website numbers: see the
+testing guide.
+
+### Backups — `./scripts/backup.sh`
+
+backup01 backs up every night at 02:00 (first run 6 min after deploy): the shop database (dump taken from the
+replica db02), the running configuration of the four switches, SHA-256 checksums, 7 restore points kept, and a
+copy of everything on the TrueNAS backup LUN (iSCSI), where daily ZFS snapshots keep 14 days of versions
+(run `python3 scripts/truenas-setup.py` once to create the snapshot schedule). Each run is logged to the NOC
+(`syslog01`). `restore-test` restores the newest dump into a scratch MariaDB from the local copy and from the
+copy read back from TrueNAS, and compares the row counts with the values recorded at backup time.
 
 ### Core load sharing — `./scripts/tests.sh loadshare`
 

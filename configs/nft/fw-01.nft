@@ -1,6 +1,6 @@
 #!/usr/sbin/nft -f
 # =====================================================================
-# FW-01 security policy (replaces pfSense)
+# Firewall security policy (replaces pfSense) - loaded on fw-01 AND fw-02 (same interfaces)
 #   outside = eth1 (edge-r1), eth2 (edge-r2)
 #   inside  = eth3 (core-01), eth4 (core-02)
 #   dmz     = eth5 (VLAN 60)
@@ -12,7 +12,7 @@ flush ruleset
 define OUTSIDE  = { "eth1", "eth2" }
 define INSIDE   = { "eth3", "eth4" }
 define DMZ      = "eth5"
-define DMZ_WEB  = { 10.10.60.10, 10.10.60.11 }
+define WWW      = 10.10.60.20   # public website: load balancer virtual IP (web-dmz01/02)
 define DB01     = 10.10.20.35   # MariaDB virtual IP (keepalived: db01 primary, db02 standby)
 define DNS01    = 10.10.20.40
 
@@ -25,6 +25,7 @@ table inet filter {
         ct state invalid drop
         ip protocol 89 accept                      comment "OSPF"
         ip protocol icmp accept                    comment "ping the firewall"
+        iifname $DMZ ip protocol 112 accept        comment "VRRP: DMZ gateway shared by fw-01/fw-02"
         iifname "eth0" tcp dport 22 accept         comment "SSH from OOB only"
         counter comment "dropped to firewall"
     }
@@ -39,9 +40,9 @@ table inet filter {
         # --- Inside (servers, users, NOC) may go anywhere -------------------
         iifname $INSIDE accept
 
-        # --- Internet -> DMZ: web only --------------------------------------
-        iifname $OUTSIDE oifname $DMZ ip daddr $DMZ_WEB tcp dport { 80, 443 } counter accept
-        iifname $OUTSIDE oifname $DMZ ip daddr $DMZ_WEB icmp type echo-request accept
+        # --- Internet -> DMZ: only the website's virtual IP, HTTP/HTTPS ------
+        iifname $OUTSIDE oifname $DMZ ip daddr $WWW tcp dport { 80, 443 } counter accept
+        iifname $OUTSIDE oifname $DMZ ip daddr $WWW icmp type echo-request accept
 
         # --- DMZ -> Inside: only the two flows the web servers need ----------
         iifname $DMZ oifname $INSIDE ip daddr $DB01  tcp dport 3306 counter accept comment "web -> MariaDB"

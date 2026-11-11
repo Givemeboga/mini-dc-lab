@@ -9,6 +9,8 @@ Idempotent: it only creates what is missing.
   - ZFS pool "tank" = mirror of the two data disks, zvols tank/db (10 GiB) and tank/backup (4 GiB)
   - iSCSI: base name iqn.2026-09.lab.dc, portal 10.10.30.10:3260,
     targets storage01.db (only db01 10.10.30.30) and storage01.backup (only backup01 10.10.30.40), LUN 1
+  - periodic ZFS snapshots: tank/backup daily 02:30 kept 14 days (versions of the nightly backup copy),
+    tank/db every hour kept 24 hours
 Uses only the Python standard library (minimal WebSocket client below).
 """
 import base64, json, os, socket, ssl, struct, sys, time
@@ -199,6 +201,19 @@ def main():
     except RuntimeError:
         c.call("service.start", "iscsitarget")
     step("iSCSI service enabled and started")
+
+    # ---- snapshots: the backup LUN is overwritten every night by backup01 (scripts/backup.sh),
+    # the snapshots keep the previous versions (ransomware / mistake protection)
+    for ds, lifetime, unit, sched in [("tank/backup", 14, "DAY", {"minute": "30", "hour": "2"}),
+                                      ("tank/db", 24, "HOUR", {"minute": "0", "hour": "*"})]:
+        if c.call("pool.snapshottask.query", [["dataset", "=", ds]]):
+            step(f"snapshot task for {ds} exists")
+            continue
+        c.call("pool.snapshottask.create", {
+            "dataset": ds, "recursive": False, "lifetime_value": lifetime, "lifetime_unit": unit,
+            "naming_schema": "auto-%Y-%m-%d_%H-%M", "enabled": True, "allow_empty": True,
+            "schedule": {**sched, "dom": "*", "month": "*", "dow": "*"}})
+        step(f"snapshot task: {ds} at {sched['hour']}:{sched['minute'].zfill(2)}, kept {lifetime} {unit.lower()}s")
     print("Done. Check with: ./scripts/tests.sh")
 
 

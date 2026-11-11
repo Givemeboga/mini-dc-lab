@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       iproute2 iputils-ping traceroute curl ca-certificates dnsutils tcpdump iperf3 \
       nftables procps nano less netcat-openbsd python3 snmp \
       nginx-light bind9 mariadb-server mariadb-client rsyslog \
-      tgt libiscsi-bin keepalived \
+      libiscsi-bin keepalived qemu-utils qemu-block-extra \
  && rm -rf /var/lib/apt/lists/* \
  && rm -f /etc/nginx/sites-enabled/default.dpkg-dist
 CMD ["sleep", "infinity"]

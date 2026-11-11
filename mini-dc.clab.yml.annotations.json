@@ -313,16 +313,16 @@
     },
     {
       "id": "nd-fw-01",
-      "text": "OSPF + nftables",
+      "text": "Active · OSPF + nftables",
       "position": {
-        "x": 692,
+        "x": 615,
         "y": 369
       },
       "fontSize": 19,
       "fontColor": "#334155",
       "fontWeight": "bold",
       "textAlign": "center",
-      "width": 240
+      "width": 180
     },
     {
       "id": "nd-core-01",
@@ -673,6 +673,19 @@
       "fontColor": "#6d28d9",
       "fontWeight": "bold",
       "textAlign": "left"
+    },
+    {
+      "id": "nd-fw-02",
+      "text": "Standby · OSPF cost 100",
+      "position": {
+        "x": 825,
+        "y": 369
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 180
     }
   ],
   "freeShapeAnnotations": [
@@ -1080,7 +1093,7 @@
     {
       "id": "fw-01",
       "position": {
-        "x": 757,
+        "x": 650,
         "y": 235
       },
       "icon": "dc-firewall",
@@ -1345,6 +1358,16 @@
         "x": 631,
         "y": 1011
       }
+    },
+    {
+      "id": "fw-02",
+      "position": {
+        "x": 860,
+        "y": 235
+      },
+      "icon": "dc-firewall",
+      "groupId": "g-mmr",
+      "labelPosition": "bottom"
     }
   ],
   "edgeAnnotations": [],

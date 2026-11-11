@@ -2,7 +2,7 @@
 #  Mini Data Center - Containerlab topology
 #  Network & building architecture lab (ESPRIT) - no VM / nested virtualization
 #
-#  Deploy : ./deploy.sh   (wraps containerlab deploy, see README)
+#  Deploy : ./deploy.sh   (wraps containerlab deploy, loads the passwords from lab.env, see README)
 #  Destroy: containerlab destroy -t mini-dc.clab.yml --cleanup   (no sudo: clab_admins group)
 #
 #  "group" = building / room. TopoViewer and `containerlab graph` use it
@@ -63,6 +63,13 @@ topology:
       group: "Bat. informatique - Salle reseau (MMR)"
       mgmt-ipv4: 10.10.10.40
       binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/fw-01.conf:/etc/frr/frr.conf]
+      exec: [sh /lab/scripts/init-router.sh]
+    fw-02:                           # standby firewall: same policy, OSPF cost 100, takes over if fw-01 fails
+      kind: linux
+      image: dc-router:latest
+      group: "Bat. informatique - Salle reseau (MMR)"
+      mgmt-ipv4: 10.10.10.41
+      binds: [configs/frr/daemons:/etc/frr/daemons, configs/frr/fw-02.conf:/etc/frr/frr.conf]
       exec: [sh /lab/scripts/init-router.sh]
     core-01:
       kind: arista_ceos
@@ -200,19 +207,19 @@ topology:
       image: postgres:16-alpine
       group: "Bat. logistique"
       mgmt-ipv4: 10.10.10.52
-      env: {POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix}
+      env: {POSTGRES_USER: zabbix, POSTGRES_PASSWORD: "${ZBX_DB_PASS:=zabbix}", POSTGRES_DB: zabbix}
     monitor01:
       kind: linux
       image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
       group: "Bat. logistique"
       mgmt-ipv4: 10.10.10.50
-      env: {DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix}
+      env: {DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: "${ZBX_DB_PASS:=zabbix}", POSTGRES_DB: zabbix}
     zbx-web:
       kind: linux
       image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
       group: "Bat. logistique"
       mgmt-ipv4: 10.10.10.51
-      env: {ZBX_SERVER_HOST: 10.10.10.50, DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: zabbix, POSTGRES_DB: zabbix, PHP_TZ: Africa/Tunis}
+      env: {ZBX_SERVER_HOST: 10.10.10.50, DB_SERVER_HOST: 10.10.10.52, POSTGRES_USER: zabbix, POSTGRES_PASSWORD: "${ZBX_DB_PASS:=zabbix}", POSTGRES_DB: zabbix, PHP_TZ: Africa/Tunis}
       ports: ["8080:8080"]
 
   links:
@@ -225,6 +232,12 @@ topology:
     # Firewall <-> cores (routed, OSPF)
     - endpoints: ["fw-01:eth3", "core-01:eth5"]
     - endpoints: ["fw-01:eth4", "core-02:eth5"]
+    # Standby firewall fw-02: same five connections as fw-01
+    - endpoints: ["edge-r1:eth3", "fw-02:eth1"]
+    - endpoints: ["edge-r2:eth3", "fw-02:eth2"]
+    - endpoints: ["fw-02:eth3", "core-01:eth8"]
+    - endpoints: ["fw-02:eth4", "core-02:eth8"]
+    - endpoints: ["fw-02:eth5", "dmz-sw:eth4"]
     # DMZ
     - endpoints: ["fw-01:eth5", "dmz-sw:eth1"]
     - endpoints: ["dmz-sw:eth2", "web-dmz01:eth1"]

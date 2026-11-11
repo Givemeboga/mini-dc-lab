@@ -2,6 +2,10 @@
 clab-mini-dc/
 .clab-mini-dc.clab.yml.bak
 
+# Secrets generated per machine by scripts/gen-secrets.sh (template: lab.env.example)
+lab.env
+pki/
+
 # Logs
 deploy.log
 .deploy-run.out

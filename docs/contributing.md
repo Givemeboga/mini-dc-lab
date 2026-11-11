@@ -6,7 +6,7 @@
 
 1. **Update** — `git pull` on `main` before you start.
 2. **Branch** — one branch per task: `git switch -c feature/<topic>`.
-3. **Test** — `./scripts/tests.sh` must say `20 passed`; for database changes also run `./scripts/db-failover.sh`.
+3. **Test** — `./scripts/tests.sh` must say `27 passed`; for database changes also run `./scripts/db-failover.sh`.
 4. **Push** — `git push -u origin feature/<topic>`, then open a pull request and paste the test result.
 5. **Review & merge** — no direct pushes to `main`.
 
@@ -20,31 +20,34 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, management network `dc-oob` |
+| `mini-dc.clab.yml` | Topology: 32 nodes, 40 links, management network `dc-oob` |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
 | `.clab-icons/` | Custom TopoViewer icons |
 | `configs/ceos/` | Arista startup configs — cores (L3, VRRP load sharing, MSTP, OSPF), ToRs (L2) |
-| `configs/frr/` | FRRouting configs for the edges, firewall and ISPs |
-| `configs/nft/` | nftables — firewall policy, edge NAT / port-forwards, ISP NAT, database host firewall |
-| `scripts/init-router.sh` | Boot script for ISPs, edges, firewall (sysctl, routes, MTU, nftables) |
+| `configs/frr/` | FRRouting configs for the edges, both firewalls and the ISPs |
+| `configs/nft/` | nftables — firewall policy (both firewalls), edge NAT / port-forwards, ISP NAT |
+| `scripts/init-router.sh` | Boot script for ISPs, edges, firewalls (sysctl, routes, MTU, nftables, DMZ gateway keepalived) |
 | `scripts/init-bridge.sh` | Turns a container into a Linux-bridge switch (`stp` for dual-homed ones) |
-| `scripts/init-host.sh` | Boot script for every server / PC — role chosen by hostname (incl. MariaDB primary/replica + keepalived) |
+| `scripts/init-host.sh` | Boot script for every server / PC — role chosen by hostname (MariaDB HA, HTTPS load balancer, host firewalls) |
+| `scripts/gen-secrets.sh` | Creates `lab.env` (random passwords) and `pki/` (lab CA + www.dc.lab certificate) — run by `deploy.sh` |
+| `scripts/backup.sh` | Backup job on backup01: run · list · restore-test · status |
 | `scripts/init-truenas.sh` | Boot script for storage01: bridges the SAN cable, starts the TrueNAS VM (QEMU/KVM) |
-| `scripts/truenas-setup.py` | Configures TrueNAS (SAN IP, ZFS pool, zvols, iSCSI targets + ACL) via its API |
-| `scripts/tests.sh` | 20 functional checks · `failover` demo |
+| `scripts/truenas-setup.py` | Configures TrueNAS (SAN IP, ZFS pool, zvols, iSCSI targets + ACL, snapshot tasks) via its API |
+| `scripts/tests.sh` | 27 functional checks · `failover` · `loadshare` demos |
 | `scripts/db-failover.sh` | Database failover test: status · crash · server · restore |
 | `scripts/db-promote.sh` | keepalived hook: makes the node that takes the DB virtual IP a writable primary |
 | `scripts/zabbix-add-hosts.py` | Registers all devices in Zabbix through its API |
-| `deploy.sh` | `containerlab deploy` + stale-lab check + cEOS rescue-mode watcher + real failure reporting |
+| `deploy.sh` | secrets + `containerlab deploy` + stale-lab check + cEOS rescue-mode watcher + real failure reporting |
 | `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host` / `dc-truenas`, pulls Zabbix images |
 | `images/` | Dockerfiles for `dc-router`, `dc-host` and `dc-truenas` |
+| `lab.env.example` | Template of `lab.env` (the real file is generated and never committed) |
 | `truenas/` | TrueNAS ISO and VM disks (local only, not in git) |
 | `docs/` | This documentation, the architecture diagram, the TopoViewer screenshot and the testing guide |
 | `CLAUDE.md` | Notes for the Claude Code assistant: environment, commands, lessons learned |
 
 ## Not versioned
 
-See `.gitignore`: `clab-mini-dc/` (generated at every deploy, contains TLS keys), `truenas/` (ISO + VM disks),
+See `.gitignore`: `lab.env` and `pki/` (this machine's passwords and private keys), `clab-mini-dc/` (generated at every deploy, contains TLS keys), `truenas/` (ISO + VM disks),
 logs, layout backups and the cEOS image. **Never commit the cEOS `.tar.xz`** — it is licensed by Arista.
 
 ## Updating the documentation

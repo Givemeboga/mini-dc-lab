@@ -20,20 +20,22 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 31 nodes, 35 links, mgmt network `dc-oob` 10.10.10.0/24 |
+| `mini-dc.clab.yml` | Topology: 32 nodes, 40 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
 | `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP load sharing: core-01 VLAN 20/40, core-02 VLAN 50/70, MSTP, OSPF), tor-01/02 (L2) |
-| `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2 and fw-01 (OSPF, static defaults) |
-| `configs/nft/*.nft` | nftables: fw-01 policy, edge NAT/port-forward, ISP NAT, db01 host firewall |
-| `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft) |
+| `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2, fw-01 (active) and fw-02 (standby, OSPF cost 100) |
+| `configs/nft/*.nft` | nftables: firewall policy (fw-01.nft, loaded on both firewalls), edge NAT/port-forward 80/443 → www VIP, ISP NAT |
+| `scripts/init-router.sh` | exec for isp/edge/fw (sysctl, remove docker default route, MTU, nft, keepalived DMZ gateway VRRP 61) |
 | `scripts/init-bridge.sh` | exec for Linux-bridge "switches" (`stp` arg for dual-homed ones) |
-| `scripts/init-host.sh` | exec for every server/PC; role chosen by hostname (IPs, nginx, BIND, MariaDB primary db01 / replica db02 + keepalived, rsyslog) |
+| `scripts/init-host.sh` | exec for every server/PC; role chosen by hostname (IPs, nginx, BIND, MariaDB HA, HTTPS LB on web-dmz01/02 + VRRP 62, host firewall `role_fw`, backup scheduler). `init-host.sh <function>` re-runs one function |
+| `scripts/gen-secrets.sh` | creates git-ignored `lab.env` (random passwords) + `pki/` (lab CA, www.dc.lab cert); run by deploy.sh |
+| `scripts/backup.sh` | backup job on backup01 (re-execs itself there): `run` · `list` · `restore-test` · `status`; nightly 02:00 |
 | `scripts/init-truenas.sh` | exec for storage01: bridges eth1 (SAN) to the VM's tap0, creates qcow2 disks, starts QEMU/KVM + noVNC |
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
 | `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
 | `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
-| `scripts/tests.sh` | 20 functional checks; `tests.sh failover` = ISP + VRRP failover demo; `tests.sh loadshare` = core load sharing |
-| `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin/zabbix) |
+| `scripts/tests.sh` | 27 functional checks; `failover` = ISP + VRRP + firewall + website failover; `loadshare` = core load sharing |
+| `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin / ZBX_ADMIN_PASS from lab.env, changes the default on first run) |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |
 | `README.md` + `docs/*.md` | README = short landing page; `docs/setup.md` (install), `operations.md` (daily use), `architecture.md`, `troubleshooting.md`, `contributing.md` (workflow + full file layout) — update the right one, keep README short |
@@ -42,7 +44,8 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 ```bash
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
-./scripts/tests.sh                                   # expect 20 passed (iSCSI needs TrueNAS booted: 2–4 min)
+./scripts/tests.sh                                   # expect 27 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
+./scripts/backup.sh run | restore-test               # backup now / prove it restores (local + TrueNAS copy)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password
 ./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈2.3 s, server offline ≈3.8 s
 ./scripts/tests.sh failover                          # ISP ≈0.2 s, VRRP ≈2.8 s measured
@@ -94,15 +97,22 @@ docker exec -it clab-mini-dc-fw-01 vtysh
   `interface.commit` (rollback) + reconnect + `interface.checkin` within the timeout.
 - TrueNAS refuses a zvol bigger than 80% of the free pool space (2 × 20 GiB mirror → db 10 GiB, backup 4 GiB).
 - The iSCSI base name is set to `iqn.2026-09.lab.dc` and targets are LUN 1, so the tests kept the old tgt IQNs.
+- OpenSSL `-subj`: a bare `+` splits an RDN (`RAM+` silently produced no certificate) → write `RAM\+`.
+- Secrets live in git-ignored `lab.env` / `pki/`; the DMZ servers and PCs `umount /lab` after boot, so
+  `init-host.sh <function>` cannot be re-run there (redeploy instead). Tests read passwords from `lab.env`.
+- fw-01 and fw-02 have no conntrack sync: connections open during a firewall failover must reconnect.
+- Writing to the iSCSI LUN from a container: no kernel initiator in WSL → `qemu-img convert -n … iscsi://` /
+  `qemu-img dd` (qemu-block-extra) in dc-host.
 
 ## Design deviations from the original diagram
 
 pfSense → FRR+nftables · HSRP → VRRP · Rapid-PVST → MSTP · MGMT VLAN 10 → clab OOB network ·
 Zabbix on OOB network · storage switch cabled to servers' storage NICs · AD01 = IP/DNS only (no Samba) ·
 STORAGE01 = TrueNAS SCALE VM (required by the professor) instead of a container iSCSI target ·
-added DB02 + keepalived virtual IP (database high availability).
+added DB02 + keepalived virtual IP (database high availability) · added FW-02 standby firewall ·
+DMZ web servers behind one HTTPS load balancer VIP (10.10.60.20 www.dc.lab) instead of one server per ISP.
 
 ## Possible next work
 
-report chapter (tests 20/20, failover numbers) ·
-faster VRRP/BFD · second firewall · Samba AD on ad01 · Grafana dashboards · Kali node for attack demos.
+Priority 2 of the project review: NTP · Samba AD / FreeIPA + RADIUS · Suricata IDS + Kali attack demo ·
+Zabbix alerts/dashboards automated from deploy.sh · storage replication · BFD · simulated UPS/temperature sensors.

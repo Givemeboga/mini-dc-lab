@@ -259,11 +259,12 @@ Wait ~30 s for OSPF and spanning tree to converge, then:
 ./scripts/tests.sh
 ```
 
-✅ **Check** — last line: **`Result: 20 passed, 0 failed`**.
+✅ **Check** — last line: **`Result: 27 passed, 0 failed`** (the backup check needs the first backup, 6 min after deploy).
 A test failed? Wait a minute and run it again, then see [Troubleshooting](troubleshooting.md).
 
 Register the devices in Zabbix (needed after **every** deploy), then open <http://localhost:8080>
-in your Windows browser (`Admin` / `zabbix`):
+in your Windows browser — user `Admin`, password `ZBX_ADMIN_PASS` from `lab.env` (the script replaces the
+default `zabbix` password on its first run):
 
 ```bash
 python3 scripts/zabbix-add-hosts.py
