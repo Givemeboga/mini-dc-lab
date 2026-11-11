@@ -14,8 +14,8 @@ cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
                                       # after a reboot it offers to destroy the old copy: answer y
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 33 passed, 0 failed
-python3 scripts/zabbix-add-hosts.py   # re-register the Zabbix hosts (after every deploy)
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 39 passed, 0 failed
+                                      # deploy.sh also configures Zabbix (python3 scripts/zabbix-setup.py)
 ```
 
 When you are done — **always before shutting down Windows or running `wsl --shutdown`**:
@@ -33,7 +33,7 @@ virtual disks, so nothing has to be reinstalled.
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Start the lab (5–8 min) |
-| `./scripts/tests.sh` | 33 functional checks |
+| `./scripts/tests.sh` | 39 functional checks |
 | `./scripts/tests.sh failover` | ISP, core gateway, firewall, website, intranet and DNS failover demo |
 | `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
 | `./scripts/db-failover.sh status` | Database: who owns the virtual IP, is the standby in sync |
@@ -43,7 +43,11 @@ virtual disks, so nothing has to be reinstalled.
 | `./scripts/backup.sh run` | Back up now: database + switch configs → backup01 + TrueNAS LUN |
 | `./scripts/backup.sh list` | Restore points stored on backup01 and the job log |
 | `./scripts/backup.sh restore-test` | Prove the last backup restores (local copy and TrueNAS copy) |
-| `python3 scripts/zabbix-add-hosts.py` | Register all devices in Zabbix |
+| `python3 scripts/zabbix-setup.py` | (Re)configure Zabbix: hosts, checks, alarms, dashboard (deploy.sh runs it) |
+| `python3 scripts/zabbix-setup.py problems` | Current Zabbix problems in the terminal |
+| `./scripts/tests.sh monitoring` | Alarm demo: cooling failure, power failure, firewall drop logged |
+| `./scripts/facility.sh status` | Simulated power and cooling sensors (bms01) |
+| `./scripts/facility.sh cooling-failure` / `power-failure` / `generator-failure` / `restore` | Trigger a facility incident |
 | `python3 scripts/truenas-setup.py` | (Re)apply the TrueNAS pool / zvols / iSCSI / snapshot configuration |
 | `containerlab inspect -t mini-dc.clab.yml` | List nodes, state and management IPs |
 | `containerlab destroy -t mini-dc.clab.yml --cleanup` | Stop and remove the lab |
@@ -87,6 +91,23 @@ Six failures in a row, each restored automatically, each measured with a fast pi
 Measured: **ISP ≈ 0.2 s** · **core gateway (VRRP) ≈ 2.8 s** · **firewall ≈ 0.2 s** (BFD), and a TCP download running
 through it never stops (conntrackd) · **website ≈ 0.8 s** · **intranet ≈ 0.8 s** · **DNS**: lookups answered by ad01 in
 ≈ 40 ms. fw-01 is brought back *gracefully* (maximum OSPF cost until its adjacencies are up), so the return costs nothing.
+
+### Monitoring and alarms — `./scripts/tests.sh monitoring`
+
+Zabbix (monitor01, OOB network) polls the switches by SNMP and every server, firewall and edge through its
+**Zabbix agent** (`scripts/init-ops.sh`), which runs the data center's own checks: which node owns each virtual IP,
+MariaDB and replication, backup age, OSPF / BFD on the firewalls, DNS, NTP offset, the HTTPS / HTTP services. Each check
+has alarms (`scripts/zabbix-setup.py`), for example *"db.dc.lab running on the backup db02"* or *"fw-01: OSPF neighbor
+lost"*, shown under **Monitoring → Problems** and on the **RAM+ Data Center** dashboard.
+
+The physical side is simulated by **bms01** (building management system): utility feeds, UPS A/B, generators, CRAH units,
+hall temperature and humidity, IT power and PUE. `./scripts/facility.sh cooling-failure` makes hall A heat up (alarms at
+27 °C and 32 °C), `power-failure` cuts feed A (UPS on battery, generator starts after 10 s), `generator-failure` lets
+battery A run out so power path A goes down while the IT keeps running on path B (2N). `restore` ends the incident.
+
+Logs: every server, firewall and edge forwards its logs (keepalived, FRR, BIND, chrony, the firewall's dropped packets…)
+to **both** collectors, syslog01 and noc-ws (`/var/log/remote/<device>.log`), over the OOB network.
+Time: dns01 and ad01 are NTP servers (synced to pool.ntp.org); servers and switches use them.
 
 ### Backups — `./scripts/backup.sh`
 

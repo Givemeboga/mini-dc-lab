@@ -21,6 +21,7 @@ case "$H" in
     # routing table only contains what FRR (static + OSPF) decides.
     ip route del default dev eth0 2>/dev/null
     nft -f /lab/configs/nft/$H.nft
+    sh /lab/scripts/init-ops.sh
     ;;
   fw-01|fw-02)
     ip route del default dev eth0 2>/dev/null
@@ -84,7 +85,30 @@ General {
 }
 CONF
     mkdir -p /var/lock /var/run
+    # conntrackd binds to the sync address: wait until FRR has put it on eth6
+    for i in $(seq 60); do ip -4 addr show eth6 2>/dev/null | grep -q "$ME/" && break; sleep 1; done
     conntrackd -d -C /etc/conntrackd.conf </dev/null >/dev/null 2>&1
+    # dropped packets: nftables "log group 1" (NFLOG works inside a container, plain "log" does not)
+    # -> ulogd -> syslog -> both NOC collectors (init-ops.sh)
+    cat > /etc/ulogd.conf <<'CONF'
+[global]
+logfile="syslog"
+loglevel=5
+plugin="/usr/lib/ulogd/ulogd_inppkt_NFLOG.so"
+plugin="/usr/lib/ulogd/ulogd_raw2packet_BASE.so"
+plugin="/usr/lib/ulogd/ulogd_filter_IFINDEX.so"
+plugin="/usr/lib/ulogd/ulogd_filter_IP2STR.so"
+plugin="/usr/lib/ulogd/ulogd_filter_PRINTPKT.so"
+plugin="/usr/lib/ulogd/ulogd_output_SYSLOG.so"
+stack=log1:NFLOG,base1:BASE,ifi1:IFINDEX,ip2str1:IP2STR,print1:PRINTPKT,sys1:SYSLOG
+[log1]
+group=1
+[sys1]
+facility=LOG_LOCAL0
+level=LOG_WARNING
+CONF
+    sh /lab/scripts/init-ops.sh
+    ulogd -d -c /etc/ulogd.conf </dev/null >/dev/null 2>&1
     ;;
 esac
 echo "[init-router] $H done"

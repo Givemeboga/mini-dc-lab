@@ -122,7 +122,10 @@ CONF
     echo 'zone "dc.lab" { type slave; masters { 10.10.20.40; }; file "/var/cache/bind/db.dc.lab";
                          min-retry-time 30; max-retry-time 60; };' > /etc/bind/named.conf.local
     mkdir -p /run/named && chown bind:bind /run/named /var/cache/bind
-    named -u bind -4 </dev/null >/dev/null 2>&1
+    # at boot the switches may not forward yet; a failed transfer makes BIND cache dns01 as unreachable,
+    # so start named only once dns01 answers (in the background: the rest of the boot goes on)
+    ( for _ in $(seq 120); do dig +short +time=1 +tries=1 @10.10.20.40 dc.lab SOA | grep -q . && break; sleep 5; done
+      named -u bind -4 </dev/null >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
     return
   fi
   cat > /etc/bind/named.conf.local <<'CONF'
@@ -175,6 +178,9 @@ GRANT SELECT ON shop.* TO 'web'@'10.10.60.%';
 GRANT ALL ON shop.* TO 'app'@'10.10.20.%';
 GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT, RELOAD, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'repl'@'10.10.20.%';
 GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON *.* TO 'backup'@'10.10.40.10';
+-- Zabbix agent (OS user zabbix, no password: unix socket) may only read the replication state
+CREATE USER IF NOT EXISTS 'zabbix'@'localhost' IDENTIFIED VIA unix_socket;
+GRANT REPLICATION CLIENT, SLAVE MONITOR ON *.* TO 'zabbix'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 }
@@ -268,6 +274,10 @@ start_app() {
   nohup python3 -m http.server 8080 --directory /srv/app </dev/null >/var/log/app.log 2>&1 &
 }
 
+start_bms() {  # building management system simulator (power + cooling sensors for Zabbix)
+  nohup bash /lab/scripts/facility.sh run </dev/null >/dev/null 2>&1 &
+}
+
 start_backup() {  # nightly backup job + first run a few minutes after deploy (scripts/backup.sh)
   nohup bash /lab/scripts/backup.sh schedule </dev/null >/dev/null 2>&1 &
 }
@@ -284,7 +294,8 @@ role_fw() {
                         ip protocol 112 ip saddr $SERVERS accept" ;;
     app0[12])    allow="tcp dport 8080 ip saddr { $SERVERS, $USERS, $NOC } accept
                         ip protocol 112 ip saddr $SERVERS accept" ;;
-    dns01|ad01)  allow="meta l4proto { tcp, udp } th dport 53 ip saddr 10.10.0.0/16 accept" ;;
+    dns01|ad01)  allow="meta l4proto { tcp, udp } th dport 53 ip saddr 10.10.0.0/16 accept
+                        udp dport 123 ip saddr 10.10.0.0/16 accept" ;;
     db01|db02)   allow="tcp dport 3306 ip saddr { 127.0.0.1, $SERVERS, $DMZ, $BACKUP01 } accept
                         ip protocol 112 ip saddr $SERVERS accept" ;;
     syslog01|noc-ws) allow="udp dport 514 ip saddr 10.10.0.0/16 accept" ;;
@@ -312,8 +323,11 @@ NFT
 
 # Hosts exposed to untrusted users (DMZ, PCs) must not keep the lab folder, which holds lab.env and
 # the private keys: unmount it once the role is set up.
+# Logs to the collectors, NTP, Zabbix agent (scripts/init-ops.sh) - every role except admin-pc
+ops() { sh /lab/scripts/init-ops.sh; }
+
 # -l (lazy): this very script is read from /lab, a normal umount would fail with "target is busy".
-drop_lab_folder() { umount -l /lab && log "lab folder unmounted (no secrets on this host)"; }
+drop_lab_folder() { ops; umount -l /lab && log "lab folder unmounted (no secrets on this host)"; }
 
 [ -n "$1" ] && { "$1" "${@:2}"; exit; }   # run a single function (see header)
 
@@ -342,8 +356,10 @@ case "$H" in
   syslog01)  addr eth1 10.10.70.20/24; gw 10.10.70.1; use_dc_dns; start_syslog ;;
   pc-01)     addr eth1 10.10.50.101/24; gw 10.10.50.1; use_dc_dns; role_fw; drop_lab_folder ;;
   pc-02)     addr eth1 10.10.50.102/24; gw 10.10.50.1; use_dc_dns; role_fw; drop_lab_folder ;;
+  bms01)     start_bms ;;   # OOB only: Zabbix reads its sensors over the management network
   admin-pc)  : ;;   # lives only on the OOB management network
   *)         log "no role defined" ;;
 esac
 case "$H" in admin-pc|pc-0[12]|web-dmz0[12]|db0[12]) ;; *) role_fw ;; esac   # the others already did
+case "$H" in admin-pc|pc-0[12]|web-dmz0[12]) ;; *) ops ;; esac              # the others ran it before umount
 log "done"

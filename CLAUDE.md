@@ -20,7 +20,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 34 nodes, 43 links, mgmt network `dc-oob` 10.10.10.0/24 |
+| `mini-dc.clab.yml` | Topology: 35 nodes, 43 links, mgmt network `dc-oob` 10.10.10.0/24 |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, icons) — visual only |
 | `configs/ceos/*.cfg` | Arista startup configs: core-01/02 (L3, VRRP load sharing: core-01 VLAN 20/40, core-02 VLAN 50/70, MSTP, OSPF), tor-01/02 (L2) |
 | `configs/frr/*.conf`, `daemons` | FRR for edge-r1/r2, fw-01 (active) and fw-02 (standby, OSPF cost 100); bfdd on, `ip ospf bfd` on edge/fw/core links |
@@ -34,8 +34,10 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
 | `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
 | `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
-| `scripts/tests.sh` | 33 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
-| `scripts/zabbix-add-hosts.py` | Registers devices in Zabbix via API (http://localhost:8080, Admin / ZBX_ADMIN_PASS from lab.env, changes the default on first run) |
+| `scripts/tests.sh` | 39 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
+| `scripts/zabbix-setup.py` | Zabbix via API (run by deploy.sh): hosts, custom agent items + triggers, dashboard; `problems` lists active ones. Admin / ZBX_ADMIN_PASS |
+| `scripts/init-ops.sh` | run by init-host/init-router: rsyslog forward to both collectors (OOB), chrony (-x), zabbix_agentd with role UserParameters |
+| `scripts/facility.sh` | BMS simulator on bms01 (`run` daemon) + `status`/`cooling-failure`/`power-failure`/`generator-failure`/`restore` |
 | `deploy.sh` | Wrapper around `containerlab deploy`: refuses/offers to destroy a stale lab, watcher un-sticks cEOS rescue mode, reports real failures |
 | `setup.sh` | Builds `dc-router` (FRR+nftables), `dc-host` (Debian services), `dc-truenas` (Ubuntu + QEMU + noVNC) images |
 | `README.md` + `docs/*.md` | README = short landing page; `docs/setup.md` (install), `operations.md` (daily use), `architecture.md`, `troubleshooting.md`, `contributing.md` (workflow + full file layout) — update the right one, keep README short |
@@ -44,7 +46,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 ```bash
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
-./scripts/tests.sh                                   # expect 33 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
+./scripts/tests.sh                                   # expect 39 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
 ./scripts/backup.sh run | restore-test               # backup now / prove it restores (local + TrueNAS copy)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password
 ./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈2.3 s, server offline ≈3.8 s
@@ -69,7 +71,7 @@ docker exec -it clab-mini-dc-fw-01 vtysh
 - In `tests.sh`, `timeout` cannot wrap shell functions → timeout lives inside `x()`.
 - Zabbix: "Arista by SNMP" already contains icmpping → don't add "ICMP Ping" to switches.
 - Daemons started from exec scripts must detach stdio (`</dev/null >/dev/null 2>&1`).
-- Zabbix and the Linux PCs/servers keep state only while deployed; rerun `zabbix-add-hosts.py` after each deploy.
+- Zabbix and the Linux PCs/servers keep state only while deployed; deploy.sh runs `zabbix-setup.py` (re-run it if it timed out).
 - **Docker Desktop hijacks `/var/run/docker.sock`** if its WSL integration is on (watch the
   "Enable integration with my default WSL distro" checkbox, not just the per-distro toggle): containerlab
   then hangs at "Running postdeploy actions" and `docker ps` shows no lab. Check `docker info --format '{{.Name}}'`
@@ -115,6 +117,9 @@ docker exec -it clab-mini-dc-fw-01 vtysh
 - Bringing fw-01 back: `max-metric router-lsa administrative` until its 4 adjacencies are Full, then remove it
   (tests.sh does this); FRR also has `max-metric router-lsa on-startup 20`, keepalived DMZ_GW `preempt_delay 10`.
 - BIND secondary with no zone retries after 500 s by default → `min-retry-time 30` on ad01.
+- nftables `log` does nothing in a container netns (`nf_log_all_netns=0`) → `log group 1` + ulogd (NFLOG) → rsyslog.
+- Zabbix agent runs as user zabbix: MariaDB via `zabbix@localhost` unix_socket (REPLICATION CLIENT, SLAVE MONITOR),
+  vtysh needs groups frr + frrvty. Agents listen on the OOB IP only; monitor01 has `zabbix_get` for tests.
 - Writing to the iSCSI LUN from a container: no kernel initiator in WSL → `qemu-img convert -n … iscsi://` /
   `qemu-img dd` (qemu-block-extra) in dc-host.
 

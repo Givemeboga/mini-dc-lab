@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       nftables procps nano less netcat-openbsd python3 snmp \
       nginx-light bind9 mariadb-server mariadb-client rsyslog \
       libiscsi-bin keepalived qemu-utils qemu-block-extra \
+      zabbix-agent chrony \
  && rm -rf /var/lib/apt/lists/* \
  && rm -f /etc/nginx/sites-enabled/default.dpkg-dist
 CMD ["sleep", "infinity"]

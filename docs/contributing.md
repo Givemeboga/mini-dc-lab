@@ -6,7 +6,7 @@
 
 1. **Update** — `git pull` on `main` before you start.
 2. **Branch** — one branch per task: `git switch -c feature/<topic>`.
-3. **Test** — `./scripts/tests.sh` must say `33 passed`; for database changes also run `./scripts/db-failover.sh`.
+3. **Test** — `./scripts/tests.sh` must say `39 passed`; for database changes also run `./scripts/db-failover.sh`.
 4. **Push** — `git push -u origin feature/<topic>`, then open a pull request and paste the test result.
 5. **Review & merge** — no direct pushes to `main`.
 
@@ -20,7 +20,7 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 
 | Path | Purpose |
 |---|---|
-| `mini-dc.clab.yml` | Topology: 34 nodes, 43 links, management network `dc-oob` |
+| `mini-dc.clab.yml` | Topology: 35 nodes, 43 links, management network `dc-oob` |
 | `mini-dc.clab.yml.annotations.json` | TopoViewer layout (buildings, rooms, labels) — visual only |
 | `.clab-icons/` | Custom TopoViewer icons |
 | `configs/ceos/` | Arista startup configs — cores (L3, VRRP load sharing, MSTP, OSPF), ToRs (L2) |
@@ -33,10 +33,12 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 | `scripts/backup.sh` | Backup job on backup01: run · list · restore-test · status |
 | `scripts/init-truenas.sh` | Boot script for storage01: bridges the SAN cable, starts the TrueNAS VM (QEMU/KVM) |
 | `scripts/truenas-setup.py` | Configures TrueNAS (SAN IP, ZFS pool, zvols, iSCSI targets + ACL, snapshot tasks) via its API |
-| `scripts/tests.sh` | 33 functional checks · `failover` · `loadshare` demos |
+| `scripts/tests.sh` | functional checks · `failover` · `loadshare` · `monitoring` demos |
 | `scripts/db-failover.sh` | Database failover test: status · crash · server · restore |
 | `scripts/db-promote.sh` | keepalived hook: makes the node that takes the DB virtual IP a writable primary |
-| `scripts/zabbix-add-hosts.py` | Registers all devices in Zabbix through its API |
+| `scripts/zabbix-setup.py` | Configures Zabbix through its API: hosts, checks, alarms, dashboard · `problems` |
+| `scripts/init-ops.sh` | Boot script part run on every server / firewall / edge: log forwarding, NTP, Zabbix agent checks |
+| `scripts/facility.sh` | Building management simulator on bms01 (UPS, generators, cooling) + incident commands |
 | `deploy.sh` | secrets + `containerlab deploy` + stale-lab check + cEOS rescue-mode watcher + real failure reporting |
 | `setup.sh` | One-time: kernel limits, builds `dc-router` / `dc-host` / `dc-truenas`, pulls Zabbix images |
 | `images/` | Dockerfiles for `dc-router`, `dc-host` and `dc-truenas` |

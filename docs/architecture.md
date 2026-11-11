@@ -70,7 +70,7 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
   virtual IP `10.10.60.20`. Port-forwarded traffic is also source-NATed so replies return through the same ISP.
 - **Firewall pair** (`configs/nft/fw-01.nft`, loaded on both) — default drop. Inside → anywhere; Internet → the
   website virtual IP on 80/443 only; DMZ → the database virtual IP `10.10.20.35:3306` and dns01:53 only;
-  DMZ → Internet 80/443/53; everything else counted + logged as `FW-01 DROP`. **fw-02** has the same five
+  DMZ → Internet 80/443/53; everything else counted and logged as `FW DROP` (sent to both log collectors). **fw-02** has the same five
   connections (both edges, both cores, DMZ) with OSPF cost 100 on every link, so all traffic uses fw-01 while it is
   alive; if fw-01 fails, OSPF reroutes through fw-02 within the 3 s dead interval and keepalived (VRRP 61) moves the
   DMZ gateway `10.10.60.1` to it. **BFD** (300 ms × 3) on every OSPF link between edges, firewalls and cores detects
@@ -122,7 +122,19 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
   restricted by initiator network. `db01` and `backup01` use dedicated storage NICs; VLAN 30 has no gateway.
   Tested with `iscsi-ls` / `iscsi-readcapacity16` (userspace initiator, no kernel module needed).
 - **OOB management** — cEOS management lives in a `MGMT` VRF; SSH, eAPI, SNMP and syslog run only there.
-- **NOC** — switches send syslog to `syslog01` (`/var/log/remote/<host>.log`); Zabbix polls the switches
+- **Monitoring** (`scripts/init-ops.sh` on each node, `scripts/zabbix-setup.py` for Zabbix, run by `deploy.sh`) — a
+  Zabbix agent on every server, firewall and edge listens on the OOB address only and runs the data center's checks
+  (virtual IP owners, MariaDB and replication, backup age, OSPF/BFD/connections on the firewalls, DNS, NTP offset);
+  Zabbix has alarms for each and a "RAM+ Data Center" dashboard. The agent runs as an unprivileged user: MariaDB
+  is read through a `zabbix@localhost` account limited to REPLICATION CLIENT / SLAVE MONITOR, vtysh read-only.
+- **Building management (simulated)** — bms01 (`scripts/facility.sh`) publishes the sensors of the physical design:
+  utility feeds, UPS A/B (load, battery, on battery, output), generators, CRAH units, hall temperature and humidity,
+  IT power, PUE. Incidents can be triggered (cooling failure, power failure, generator failure) to show the alarms.
+- **Logs and time** — every node forwards its syslog to both collectors over the OOB network; the firewalls send
+  dropped packets through NFLOG + ulogd (the plain nftables `log` action does not work inside a container).
+  dns01 and ad01 are NTP servers for the servers and switches (chrony runs in measuring mode in the containers,
+  which share the host's clock).
+- **NOC** — switches send syslog to `syslog01` and `noc-ws` (`/var/log/remote/<host>.log`); Zabbix polls the switches
   over SNMP (community `dclab`) and pings every node.
 - **MTU** — servers use 1500-byte frames: the cEOS ports carry at most 9214 bytes, so containerlab's default 9500
   would silently drop large TCP segments crossing the switches.

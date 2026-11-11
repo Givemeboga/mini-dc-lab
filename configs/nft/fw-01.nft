@@ -31,6 +31,7 @@ table inet filter {
         iifname $SYNC udp dport 3780 accept        comment "conntrackd: connection table sync"
         udp dport 3784 accept                      comment "BFD (fast OSPF failure detection)"
         iifname "eth0" tcp dport 22 accept         comment "SSH from OOB only"
+        iifname "eth0" tcp dport 10050 accept      comment "Zabbix agent, polled by monitor01 over OOB"
         counter comment "dropped to firewall"
     }
 
@@ -51,12 +52,13 @@ table inet filter {
         # --- DMZ -> Inside: only the two flows the web servers need ----------
         iifname $DMZ oifname $INSIDE ip daddr $DB01  tcp dport 3306 counter accept comment "web -> MariaDB"
         iifname $DMZ oifname $INSIDE ip daddr $DNS meta l4proto { tcp, udp } th dport 53 accept comment "DNS"
+        iifname $DMZ oifname $INSIDE ip daddr $DNS udp dport 123 accept comment "NTP"
 
         # --- DMZ -> Internet: updates only ---------------------------------
         iifname $DMZ oifname $OUTSIDE tcp dport { 80, 443 } accept
         iifname $DMZ oifname $OUTSIDE udp dport 53 accept
 
         # --- Everything else is logged and dropped ---------------------------
-        counter log prefix "FW-01 DROP: " level info
+        counter log prefix "FW DROP: " group 1   comment "NFLOG -> ulogd -> NOC collectors"
     }
 }

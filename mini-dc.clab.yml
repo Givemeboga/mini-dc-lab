@@ -210,6 +210,11 @@ topology:
       kind: linux
       group: "Bat. logistique"
       mgmt-ipv4: 10.10.10.100
+    bms01:                           # building management system: simulated power + cooling sensors (scripts/facility.sh)
+      kind: linux
+      group: "Bat. logistique"
+      mgmt-ipv4: 10.10.10.117
+      exec: [bash /lab/scripts/init-host.sh]
 
     # ------------------------------ Monitoring (Zabbix on the OOB network)
     zbx-db:

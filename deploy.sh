@@ -43,4 +43,6 @@ if [ "$rc" -ne 0 ]; then
   echo "[deploy.sh] Deploy FAILED (containerlab exit code $rc) - see the ERROR above and deploy.log."
   exit "$rc"
 fi
-echo "Deployed. Wait ~30 s for OSPF/STP to settle, then run: ./scripts/tests.sh"
+echo "Deployed. Configuring Zabbix (hosts, checks, alarms, dashboard)..."
+python3 scripts/zabbix-setup.py || echo "[deploy.sh] Zabbix setup failed - run python3 scripts/zabbix-setup.py again"
+echo "Ready. Wait ~30 s for OSPF/STP to settle, then run: ./scripts/tests.sh"

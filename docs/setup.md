@@ -259,15 +259,15 @@ Wait ~30 s for OSPF and spanning tree to converge, then:
 ./scripts/tests.sh
 ```
 
-✅ **Check** — last line: **`Result: 33 passed, 0 failed`** (the backup check needs the first backup, 6 min after deploy).
+✅ **Check** — last line: **`Result: 39 passed, 0 failed`** (the backup check needs the first backup, 6 min after deploy).
 A test failed? Wait a minute and run it again, then see [Troubleshooting](troubleshooting.md).
 
-Register the devices in Zabbix (needed after **every** deploy), then open <http://localhost:8080>
-in your Windows browser — user `Admin`, password `ZBX_ADMIN_PASS` from `lab.env` (the script replaces the
-default `zabbix` password on its first run):
+`deploy.sh` has already configured Zabbix (hosts, checks, alarms, dashboard). Open <http://localhost:8080>
+in your Windows browser — user `Admin`, password `ZBX_ADMIN_PASS` from `lab.env` — then **Dashboards →
+RAM+ Data Center**. If Zabbix was not ready in time, run it again:
 
 ```bash
-python3 scripts/zabbix-add-hosts.py
+python3 scripts/zabbix-setup.py
 ```
 
 Check the database redundancy — db01 must own the virtual IP and db02 must be in sync:

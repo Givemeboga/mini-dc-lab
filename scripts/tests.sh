@@ -3,6 +3,7 @@
 #   ./scripts/tests.sh            -> all functional tests
 #   ./scripts/tests.sh failover   -> ISP, core, firewall, website, intranet and DNS failover demo
 #   ./scripts/tests.sh loadshare  -> core load sharing demo (which core routes which VLAN)
+#   ./scripts/tests.sh monitoring -> Zabbix alarms demo: cooling failure, power failure, firewall drop log
 cd "$(dirname "$0")/.."
 P=clab-mini-dc
 [ -f lab.env ] && . ./lab.env          # passwords (scripts/gen-secrets.sh)
@@ -71,9 +72,15 @@ functional() {
   check "BFD up on fw-01 (2 edges + 2 cores)"        pass x fw-01 sh -c "vtysh -c 'show bfd peers brief' | grep -ci ' up ' | grep -qx 4"
   check "fw-02 holds fw-01's connections (conntrackd)" pass x fw-02 sh -c "conntrack -L 2>/dev/null | grep -q 'dport=3306'"
 
-  echo; echo "== NOC"
+  echo; echo "== NOC & monitoring"
   check "syslog01 receives logs from the switches"   pass x syslog01 sh -c 'ls /var/log/remote/ | grep -qi core'
   check "noc-ws (2nd collector) receives them too"   pass x noc-ws sh -c 'ls /var/log/remote/ | grep -qi core'
+  check "firewall drops logged on both collectors"   pass x syslog01 sh -c 'grep -q "FW DROP" /var/log/remote/fw-01.log'
+  check "servers' logs reach the collectors (db01)"  pass x noc-ws sh -c 'ls /var/log/remote/ | grep -q db01'
+  check "web01 clock synchronised to dns01/ad01 (NTP)" pass x web01 sh -c "chronyc -c tracking | grep -q ',Normal$'"
+  check "Zabbix agents answer over OOB (web01, fw-01)" pass x monitor01 sh -c 'zabbix_get -s 10.10.10.101 -k agent.ping | grep -qx 1 && zabbix_get -s 10.10.10.40 -k dc.ospf.full | grep -qx 4'
+  check "Zabbix reads the BMS sensors (hall A)"      pass x monitor01 sh -c "zabbix_get -s 10.10.10.117 -k 'bms.sensor[hall_a_temp]' | grep -Eq '^[0-9]'"
+  check "Zabbix: no active problem"                  pass python3 scripts/zabbix-setup.py problems
 
   echo; echo "Result: $ok passed, $ko failed"
 }
@@ -204,4 +211,28 @@ no shutdown" >/dev/null; echo "   core-02 Vlan50 restored (preempts back to MAST
   echo "   (a few lost pings = the failover time; core-01 routed the users until core-02 came back)"
 }
 
-case "$1" in failover) failover ;; loadshare) loadshare ;; *) functional ;; esac
+monitoring() {
+  zbx() { python3 scripts/zabbix-setup.py problems; }
+  echo "== Zabbix problems before the demo"; zbx
+  echo; echo "== Cooling failure: hall A loses its 3 CRAH units (BMS simulation, bms01)"
+  ./scripts/facility.sh cooling-failure
+  for i in 1 2 3 4 5 6; do sleep 10; echo "   +$((i * 10)) s  hall A: $(x bms01 cat /var/lib/bms/hall_a_temp) °C"; done
+  echo "-- Zabbix now:"; zbx
+  ./scripts/facility.sh restore >/dev/null
+
+  echo; echo "== Power failure: utility feed A lost AND generator A does not start"
+  ./scripts/facility.sh generator-failure
+  for i in 1 2 3 4 5 6 7; do sleep 10; echo "   +$((i * 10)) s  UPS A on battery: $(x bms01 cat /var/lib/bms/ups_a_on_battery)" \
+       " battery: $(x bms01 cat /var/lib/bms/ups_a_batt_pct) %  path A output: $(x bms01 cat /var/lib/bms/ups_a_output)" \
+       " UPS B load: $(x bms01 cat /var/lib/bms/ups_b_load_pct) %"; done
+  echo "-- Zabbix now (the IT keeps running on path B - that is what 2N is for):"; zbx
+  ./scripts/facility.sh restore >/dev/null
+
+  echo; echo "== Security event: a DMZ server tries to reach the intranet (blocked and logged centrally)"
+  x web-dmz01 curl -s -m2 http://10.10.20.10 >/dev/null; sleep 2
+  echo "   syslog01: $(x syslog01 sh -c 'grep "FW DROP" /var/log/remote/fw-01.log | tail -1' | cut -c1-160)"
+
+  echo; echo "== Waiting 60 s for everything to recover..."; sleep 60; zbx
+}
+
+case "$1" in failover) failover ;; loadshare) loadshare ;; monitoring) monitoring ;; *) functional ;; esac
