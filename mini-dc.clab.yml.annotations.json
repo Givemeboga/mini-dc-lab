@@ -15,7 +15,7 @@
     },
     {
       "id": "t-sub",
-      "text": "31 nodes · 35 links · cEOS · FRR · nftables · Zabbix · 20/20 tests",
+      "text": "34 nodes · 43 links · cEOS · FRR · nftables · Zabbix · 33/33 tests",
       "position": {
         "x": 415.58214057039163,
         "y": -504.1359249630083
@@ -111,7 +111,7 @@
     },
     {
       "id": "t-lun",
-      "text": "TrueNAS SCALE 25.10\nZFS mirror · zvols\nLUN db → DB01\nLUN backup → BACKUP01",
+      "text": "TrueNAS SCALE 25.10\nZFS mirror · zvols\nLUN db → DB01\nLUN backup → BACKUP01\nnightly backups + ZFS snapshots",
       "position": {
         "x": 1262,
         "y": 1334
@@ -160,7 +160,7 @@
     },
     {
       "id": "t-oob",
-      "text": "No cables by design: OOB only (eth0 of all 31 nodes). Zabbix polls everything from here.",
+      "text": "No cables by design: OOB only (eth0 of all 34 nodes). Zabbix polls everything from here.",
       "position": {
         "x": 1747,
         "y": 236
@@ -173,7 +173,7 @@
     },
     {
       "id": "t-legend",
-      "text": "Links: LACP 2×10G · 802.1Q trunk · access · routed /30 OSPF\nWAN · DMZ leg · iSCSI (dedicated NICs) · inter-building fiber\nDual-ISP failover ≈0.2 s · VRRP ≈2.8 s · MSTP · nftables\nIsolated SAN · OOB in VRF MGMT · Zabbix · 20/20 tests",
+      "text": "Links: LACP 2×10G · 802.1Q trunk · access · routed /30 OSPF\nWAN · DMZ leg · iSCSI (dedicated NICs) · inter-building fiber\nDual-ISP failover ≈0.2 s · VRRP ≈2.8 s · firewall ≈0.2 s · MSTP · nftables\nIsolated SAN · OOB in VRF MGMT · Zabbix · 33/33 tests",
       "position": {
         "x": 1726,
         "y": 1404
@@ -198,7 +198,7 @@
     },
     {
       "id": "t-vlan",
-      "text": "10  OOB mgmt      10.10.10.0/24\n20  Servers       10.10.20.0/24\n30  Storage       10.10.30.0/24  (not routed)\n40  Backup        10.10.40.0/24\n50  Users         10.10.50.0/24\n60  DMZ           10.10.60.0/24\n70  Monitoring    10.10.70.0/24\n99  Core transit  10.10.99.8/30\n\nRouted /30 · OSPF (1 s / 3 s)\nWAN           10.0.0.0 · 10.0.0.4\nEdges ↔ FW    10.0.1.0 · 10.0.1.4\nFW ↔ cores    10.10.99.0 · 10.10.99.4\n\nGateways: VRRP .1 — CORE-01 master,\nCORE-02 backup · DMZ gw FW-01 .1",
+      "text": "10  OOB mgmt      10.10.10.0/24\n20  Servers       10.10.20.0/24\n30  Storage       10.10.30.0/24  (not routed)\n40  Backup        10.10.40.0/24\n50  Users         10.10.50.0/24\n60  DMZ           10.10.60.0/24\n70  Monitoring    10.10.70.0/24\n99  Core transit  10.10.99.8/30\n\nRouted /30 · OSPF (1 s / 3 s)\nWAN           10.0.0.0 · 10.0.0.4\nEdges ↔ FW    10.0.1.0 · .4 · .8 · .12\nFW ↔ cores    10.10.99.0 · .4 · .12 · .16\n\nGateways: VRRP .1 — CORE-01 20/40, CORE-02 50/70\nDMZ gw .1 (FW-01/02) · VIPs: www .60.20,\nintranet .20.12 · app .20.22 · db .20.35",
       "position": {
         "x": -770,
         "y": 30
@@ -352,7 +352,7 @@
     },
     {
       "id": "nd-dmz-sw",
-      "text": "bridge",
+      "text": "bridge · www VIP .20",
       "position": {
         "x": 1287,
         "y": 202
@@ -365,7 +365,7 @@
     },
     {
       "id": "nd-web-dmz01",
-      "text": "10.10.60.10",
+      "text": "10.10.60.10\nTLS · LB",
       "position": {
         "x": 1234,
         "y": 369
@@ -378,7 +378,7 @@
     },
     {
       "id": "nd-web-dmz02",
-      "text": "10.10.60.11",
+      "text": "10.10.60.11\nTLS · LB",
       "position": {
         "x": 1408,
         "y": 369
@@ -404,7 +404,7 @@
     },
     {
       "id": "nd-web01",
-      "text": "10.10.20.10\nnginx",
+      "text": "10.10.20.10\nnginx · VIP .12",
       "position": {
         "x": 52,
         "y": 1145
@@ -417,7 +417,7 @@
     },
     {
       "id": "nd-app01",
-      "text": "10.10.20.20\nAPI",
+      "text": "10.10.20.20\nAPI · VIP .22",
       "position": {
         "x": 234,
         "y": 1145
@@ -430,7 +430,7 @@
     },
     {
       "id": "nd-dns01",
-      "text": "10.10.20.40\nBIND9",
+      "text": "10.10.20.40\nDNS primary",
       "position": {
         "x": 416,
         "y": 1145
@@ -469,7 +469,7 @@
     },
     {
       "id": "nd-ad01",
-      "text": "10.10.20.50",
+      "text": "10.10.20.50\nDNS secondary",
       "position": {
         "x": 1091,
         "y": 1145
