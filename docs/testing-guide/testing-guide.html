@@ -61,8 +61,8 @@
   <h1>Testing guide</h1>
   <p>Verify and explain every layer of the data center — Internet, firewall, core, racks, DMZ, TrueNAS SAN and NOC</p>
   <div class="meta">
-    <span><b>32</b> nodes · <b>40</b> links</span>
-    <span>Automated checks: <b>27 / 27 passing</b></span>
+    <span><b>34</b> nodes · <b>43</b> links</span>
+    <span>Automated checks: <b>33 / 33 passing</b></span>
     <span>Storage: <b>TrueNAS SCALE 25.10</b></span>
     <span>All commands verified on the live lab · <b>11 Nov 2026</b></span>
   </div>
@@ -93,7 +93,7 @@ TrueNAS (storage01) to boot before testing the SAN. TrueNAS console: <code>http:
   <div class="chip"><b>9 · Security</b>Host firewalls, secrets</div>
   <div class="chip"><b>10 · SAN</b>TrueNAS iSCSI, backups</div>
   <div class="chip"><b>11 · NOC</b>Syslog, SNMP, Zabbix</div>
-  <div class="chip"><b>12–14</b>27 checks · failover · checklist</div>
+  <div class="chip"><b>12–14</b>33 checks · failover · checklist</div>
 </div>
 
 <!-- ================================================================== 1 -->
@@ -117,7 +117,9 @@ different cost (10 on edge-r1, 20 on edge-r2), so all traffic leaves through ISP
 policy. Each has three zones: <b>outside</b> (eth1/eth2 → edges), <b>inside</b> (eth3/eth4 → cores) and the <b>DMZ</b> (eth5).
 There are <b>two</b>: fw-01 is active, fw-02 has the same five connections and the same policy but OSPF cost 100 on every
 link, so it only carries traffic if fw-01 fails. The DMZ gateway <code>10.10.60.1</code> is a keepalived virtual IP
-(VRRP 61) on fw-01 that moves to fw-02 with the traffic.
+(VRRPv3 61, adverts every 0.2 s) on fw-01 that moves to fw-02 with the traffic. <b>BFD</b> on every OSPF link detects a
+dead neighbor in under a second, and <b>conntrackd</b> copies every open connection to the other firewall over a dedicated
+cable (eth6), so a failover does not cut existing connections.
 The <code>forward</code> chain has a <b>default-drop policy</b>: only the flows listed are allowed — inside → anywhere,
 Internet → the website's virtual IP (80/443, ping), DMZ → MariaDB (virtual IP .35:3306) and DNS (dns01:53), DMZ → Internet (80/443/53).
 Everything else is counted and logged as <code>FW-01 DROP</code>. Replies to allowed connections pass thanks to connection
@@ -125,6 +127,8 @@ tracking (<code>ct state established,related accept</code>).</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec $P-fw-01 vtysh -c "show ip ospf neighbor"</td><td><span class="exp">4 neighbors Full</span> <span class="why">→ edge-r1, edge-r2, core-01, core-02: the firewall is the routing hub between zones</span></td></tr>
 <tr><td class="cmd">docker exec $P-fw-02 vtysh -c "show ip ospf neighbor"</td><td><span class="exp">4 neighbors Full</span> <span class="why">→ the standby firewall is ready: it knows every route and only waits</span></td></tr>
+<tr><td class="cmd">docker exec $P-fw-01 vtysh -c "show bfd peers brief"</td><td><span class="exp">4 sessions <b>up</b></span> <span class="why">→ both edges and both cores are watched every 300 ms</span></td></tr>
+<tr><td class="cmd">docker exec $P-fw-02 conntrack -C</td><td><span class="exp">a number &gt; 0</span> <span class="why">→ the standby already knows the connections that go through fw-01</span></td></tr>
 <tr><td class="cmd">docker exec $P-fw-01 ip -4 addr show eth5</td><td><span class="exp"><code>10.10.60.2/24</code> + <code>10.10.60.1/24</code></span> <span class="why">→ fw-01 owns the DMZ gateway (fw-02 has only .3)</span></td></tr>
 <tr><td class="cmd">docker exec $P-fw-01 vtysh -c "show ip route 0.0.0.0/0"</td><td><span class="exp">default via <code>10.0.1.1</code> (edge-r1)</span> <span class="why">→ the primary ISP wins (lower OSPF cost)</span></td></tr>
 <tr><td class="cmd">docker exec $P-fw-01 nft list ruleset</td><td><span class="exp">input + forward chains, policy drop</span> <span class="why">→ the complete security policy</span></td></tr>
@@ -229,16 +233,21 @@ layer 2 through the ToRs; traffic to the Internet goes core → firewall → edg
 <tr><td class="cmd">docker exec $P-web01 ping -c3 10.10.20.30</td><td><span class="exp">replies</span> <span class="why">→ db01 in rack B is reachable across the ToRs</span></td></tr>
 <tr><td class="cmd">docker exec $P-web01 traceroute -n 8.8.8.8</td><td><span class="exp">core → firewall → edge → ISP hops</span> <span class="why">→ the real path out of the data center</span></td></tr>
 <tr><td class="cmd">docker exec $P-web01 curl -s https://example.com | head -5</td><td><span class="exp">HTML page</span> <span class="why">→ servers get Internet access (inside → anywhere is allowed)</span></td></tr>
+<tr><td class="cmd">docker exec $P-pc-01 curl -s http://intranet.dc.lab</td><td><span class="exp"><code>&lt;h1&gt;web01</code></span> <span class="why">→ the intranet's virtual IP 10.10.20.12, on web01 (web02 in rack B is the backup)</span></td></tr>
+<tr><td class="cmd">docker exec $P-pc-01 curl -s http://app.dc.lab:8080/index.json</td><td><span class="exp"><code>"service":"app01"</code></span> <span class="why">→ the API's virtual IP 10.10.20.22 (app02 is the backup)</span></td></tr>
 <tr><td class="cmd">docker exec $P-pc-01 curl -s http://10.10.20.10</td><td><span class="exp"><code>&lt;title&gt;web01</code></span> <span class="why">→ a user in VLAN 50 opens the intranet</span></td></tr>
 </tbody></table>
 
 <!-- ================================================================== 7 -->
 <h2>7. DNS (dns01)</h2>
 <div class="how"><b class="t">How it works.</b> dns01 runs BIND9. It is authoritative for the internal zone <code>dc.lab</code>
-(servers by name instead of IP) and forwards every other name to the Internet, so all machines use one resolver.</div>
+(servers by name instead of IP) and forwards every other name to the Internet. <b>ad01 is a secondary</b>: it copies the
+zone from dns01 (zone transfer, refreshed on every change) and answers too. Every machine lists both servers with a 1 s
+timeout, so losing dns01 costs nothing noticeable.</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec $P-web01 dig +short db01.dc.lab</td><td><span class="exp"><code>10.10.20.30</code></span> <span class="why">→ internal names resolve</span></td></tr>
-<tr><td class="cmd">docker exec $P-web01 dig +short intranet.dc.lab</td><td><span class="exp"><code>web01.dc.lab.</code> → <code>10.10.20.10</code></span> <span class="why">→ a CNAME alias works</span></td></tr>
+<tr><td class="cmd">docker exec $P-web01 dig +short intranet.dc.lab</td><td><span class="exp"><code>10.10.20.12</code></span> <span class="why">→ service names point to virtual IPs, not to one server</span></td></tr>
+<tr><td class="cmd">docker exec $P-web01 dig +short @10.10.20.50 db01.dc.lab</td><td><span class="exp"><code>10.10.20.30</code></span> <span class="why">→ ad01 answers from its own copy of the zone</span></td></tr>
 <tr><td class="cmd">docker exec $P-web01 dig +short google.com</td><td><span class="exp">an IP address</span> <span class="why">→ dns01 forwards Internet names</span></td></tr>
 </tbody></table>
 
@@ -318,11 +327,12 @@ reported to the NOC (syslog01). 3-2-1 rule: production data + backup01's disk + 
 <!-- ================================================================== 11 -->
 <h2>11. NOC &amp; monitoring</h2>
 <div class="how"><b class="t">How it works.</b> The NOC in the logistics building is connected to both cores by inter-building
-fibers. Every switch sends its logs to <b>syslog01</b>. <b>Zabbix</b> sits on the out-of-band management network and polls all
+fibers. Every switch sends its logs to <b>syslog01</b> and to a second collector on <b>noc-ws</b>. <b>Zabbix</b> sits on the out-of-band management network and polls all
 devices over <b>SNMP</b> (community <code>dclab</code>) and ICMP, without touching production traffic.</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">docker exec $P-syslog01 ls /var/log/remote/</td><td><span class="exp">one <code>.log</code> per switch</span> <span class="why">→ centralized logging works</span></td></tr>
 <tr><td class="cmd">docker exec $P-syslog01 tail -5 /var/log/remote/core-01.log</td><td><span class="exp">recent core-01 messages</span> <span class="why">→ logs arrive live</span></td></tr>
+<tr><td class="cmd">docker exec $P-noc-ws ls /var/log/remote/</td><td><span class="exp">the same files</span> <span class="why">→ the second collector: losing syslog01 loses no log</span></td></tr>
 <tr><td class="cmd">docker exec $P-noc-ws ping -c3 10.10.99.1</td><td><span class="exp">replies</span> <span class="why">→ the NOC reaches the firewall over the fibers</span></td></tr>
 <tr><td class="cmd">docker exec $P-admin-pc snmpget -v2c -c dclab 10.10.10.11 1.3.6.1.2.1.1.5.0</td><td><span class="exp"><code>STRING: "core-01"</code></span> <span class="why">→ SNMP answers on the OOB network — what Zabbix polls</span></td></tr>
 </tbody></table>
@@ -330,62 +340,71 @@ devices over <b>SNMP</b> (community <code>dclab</code>) and ICMP, without touchi
 <code>python3 scripts/zabbix-add-hosts.py</code> after each deploy.</p>
 
 <!-- ================================================================== 12 -->
-<h2>12. The 27 automated checks explained (<code>./scripts/tests.sh</code>)</h2>
-<div class="how"><b class="t">How it works.</b> <code>tests.sh</code> runs 27 checks in about a minute. Each one runs a command inside
+<h2>12. The 33 automated checks explained (<code>./scripts/tests.sh</code>)</h2>
+<div class="how"><b class="t">How it works.</b> <code>tests.sh</code> runs 33 checks in about a minute. Each one runs a command inside
 a node and compares the result with the expected outcome — <i>pass</i> (the traffic must work) or <i>block</i> (it must
 fail). A check is <b>[OK]</b> only when reality matches the design; the last line must be
-<span class="ok">Result: 27 passed, 0 failed</span>. It first prints the core state (VRRP, Port-Channel, spanning-tree root,
+<span class="ok">Result: 33 passed, 0 failed</span>. It first prints the core state (VRRP, Port-Channel, spanning-tree root,
 OSPF neighbors, default route) and the firewall pair. The backup check needs the first backup (6 min after deploy).</div>
 <table><thead><tr><th>#</th><th>Check (expected)</th><th>What it runs → what it proves</th></tr></thead><tbody>
 <tr><td class="n">1</td><td>web01 → its gateway <span class="ok">pass</span></td><td>ping 10.10.20.1 → the VRRP virtual gateway answers</td></tr>
 <tr><td class="n">2</td><td>web01 → db01 <span class="ok">pass</span></td><td>ping across racks → ToR/core layer-2 path works</td></tr>
 <tr><td class="n">3</td><td>pc-01 → web01 intranet <span class="ok">pass</span></td><td>user HTTP to web01 → users reach the intranet</td></tr>
-<tr><td class="n">4</td><td>pc-01 → db01:3306 <span class="blocked">block</span></td><td>user to MariaDB port → db01's host firewall protects the database</td></tr>
-<tr><td class="n">5</td><td>pc-01 → db02:3306 <span class="blocked">block</span></td><td>same on the replica → db02's host firewall</td></tr>
-<tr><td class="n">6</td><td>backup01 → app01:8080 <span class="blocked">block</span></td><td>backup VLAN to the API → app01's host firewall only accepts its clients</td></tr>
-<tr><td class="n">7</td><td>noc-ws → fw-01 <span class="ok">pass</span></td><td>ping 10.10.99.1 → NOC routed through the core over the fibers</td></tr>
-<tr><td class="n">8</td><td>web01 → Internet <span class="ok">pass</span></td><td>HTTPS to example.com → core → firewall → edge → ISP → NAT</td></tr>
-<tr><td class="n">9</td><td>dns01 resolves db01.dc.lab <span class="ok">pass</span></td><td>internal zone → answers 10.10.20.30</td></tr>
-<tr><td class="n">10</td><td>dns01 forwards Internet names <span class="ok">pass</span></td><td>example.com → forwarding to public DNS works</td></tr>
-<tr><td class="n">11</td><td>Internet → ISP A → https://www.dc.lab <span class="ok">pass</span></td><td>from isp-a, certificate checked against the lab CA → port-forward, firewall, TLS</td></tr>
-<tr><td class="n">12</td><td>Internet → ISP B → https://www.dc.lab <span class="ok">pass</span></td><td>same from isp-b → the site is published on both ISPs</td></tr>
-<tr><td class="n">13</td><td>HTTP redirected to HTTPS <span class="ok">pass</span></td><td>http://10.0.0.1 answers 301 → no unencrypted website</td></tr>
-<tr><td class="n">14</td><td>Load balancer uses both servers <span class="ok">pass</span></td><td>6 requests → pages from web-dmz01 and web-dmz02</td></tr>
-<tr><td class="n">15</td><td>Internet cannot reach internal IPs <span class="blocked">block</span></td><td>isp-a → 10.10.20.10 → private addresses are not reachable from outside</td></tr>
-<tr><td class="n">16</td><td>DMZ web → MariaDB <span class="ok">pass</span></td><td>SQL <code>select 1</code> to the DB virtual IP .35 with the lab.env password → the one allowed DMZ flow</td></tr>
-<tr><td class="n">17</td><td>DMZ web → web01:80 <span class="blocked">block</span></td><td>HTTP to the intranet → no pivot from the DMZ</td></tr>
-<tr><td class="n">18</td><td>DMZ web → storage01 <span class="blocked">block</span></td><td>ping 10.10.30.10 → the DMZ cannot touch the SAN</td></tr>
-<tr><td class="n">19</td><td>db01 sees its iSCSI target <span class="ok">pass</span></td><td>iSCSI discovery lists <code>storage01.db</code> → TrueNAS portal up</td></tr>
-<tr><td class="n">20</td><td>db01 reads LUN capacity <span class="ok">pass</span></td><td>iSCSI login + read → db01 can use its 10 GiB disk</td></tr>
-<tr><td class="n">21</td><td>db01 → backup LUN <span class="blocked">block</span></td><td>login to the other target → TrueNAS ACL denies it</td></tr>
-<tr><td class="n">22</td><td>backup01 reads its LUN <span class="ok">pass</span></td><td>iSCSI login + read → backup01 can use its 4 GiB disk</td></tr>
-<tr><td class="n">23</td><td>storage VLAN not routed <span class="blocked">block</span></td><td>web01 → 10.10.30.10 → VLAN 30 has no gateway</td></tr>
-<tr><td class="n">24</td><td>fresh backup, checksum valid <span class="ok">pass</span></td><td><code>backup.sh status</code> → last backup less than 26 h old and intact</td></tr>
-<tr><td class="n">25</td><td>fw-02 standby ready <span class="ok">pass</span></td><td>OSPF Full with both edges and both cores → it can take over at any time</td></tr>
-<tr><td class="n">26</td><td>fw-01 owns the DMZ gateway <span class="ok">pass</span></td><td>10.10.60.1 on fw-01's eth5 → normal state of the pair</td></tr>
-<tr><td class="n">27</td><td>syslog01 receives switch logs <span class="ok">pass</span></td><td>a <code>core*.log</code> exists → centralized logging works</td></tr>
+<tr><td class="n">4</td><td>pc-01 → intranet.dc.lab <span class="ok">pass</span></td><td>HTTP to the intranet's virtual IP 10.10.20.12 → the redundant intranet works</td></tr>
+<tr><td class="n">5</td><td>pc-01 → app.dc.lab:8080 <span class="ok">pass</span></td><td>API through its virtual IP 10.10.20.22 → the redundant API works</td></tr>
+<tr><td class="n">6</td><td>pc-01 → db01:3306 <span class="blocked">block</span></td><td>user to MariaDB port → db01's host firewall protects the database</td></tr>
+<tr><td class="n">7</td><td>pc-01 → db02:3306 <span class="blocked">block</span></td><td>same on the replica → db02's host firewall</td></tr>
+<tr><td class="n">8</td><td>backup01 → app01:8080 <span class="blocked">block</span></td><td>backup VLAN to the API → app01's host firewall only accepts its clients</td></tr>
+<tr><td class="n">9</td><td>noc-ws → fw-01 <span class="ok">pass</span></td><td>ping 10.10.99.1 → NOC routed through the core over the fibers</td></tr>
+<tr><td class="n">10</td><td>web01 → Internet <span class="ok">pass</span></td><td>HTTPS to example.com → core → firewall → edge → ISP → NAT</td></tr>
+<tr><td class="n">11</td><td>dns01 resolves db01.dc.lab <span class="ok">pass</span></td><td>internal zone → answers 10.10.20.30</td></tr>
+<tr><td class="n">12</td><td>dns01 forwards Internet names <span class="ok">pass</span></td><td>example.com → forwarding to public DNS works</td></tr>
+<tr><td class="n">13</td><td>ad01 holds the dc.lab zone <span class="ok">pass</span></td><td>query the secondary DNS directly → the zone was transferred</td></tr>
+<tr><td class="n">14</td><td>Internet → ISP A → https://www.dc.lab <span class="ok">pass</span></td><td>from isp-a, certificate checked against the lab CA → port-forward, firewall, TLS</td></tr>
+<tr><td class="n">15</td><td>Internet → ISP B → https://www.dc.lab <span class="ok">pass</span></td><td>same from isp-b → the site is published on both ISPs</td></tr>
+<tr><td class="n">16</td><td>HTTP redirected to HTTPS <span class="ok">pass</span></td><td>http://10.0.0.1 answers 301 → no unencrypted website</td></tr>
+<tr><td class="n">17</td><td>Load balancer uses both servers <span class="ok">pass</span></td><td>6 requests → pages from web-dmz01 and web-dmz02</td></tr>
+<tr><td class="n">18</td><td>Internet cannot reach internal IPs <span class="blocked">block</span></td><td>isp-a → 10.10.20.10 → private addresses are not reachable from outside</td></tr>
+<tr><td class="n">19</td><td>DMZ web → MariaDB <span class="ok">pass</span></td><td>SQL <code>select 1</code> to the DB virtual IP .35 with the lab.env password → the one allowed DMZ flow</td></tr>
+<tr><td class="n">20</td><td>DMZ web → web01:80 <span class="blocked">block</span></td><td>HTTP to the intranet → no pivot from the DMZ</td></tr>
+<tr><td class="n">21</td><td>DMZ web → storage01 <span class="blocked">block</span></td><td>ping 10.10.30.10 → the DMZ cannot touch the SAN</td></tr>
+<tr><td class="n">22</td><td>db01 sees its iSCSI target <span class="ok">pass</span></td><td>iSCSI discovery lists <code>storage01.db</code> → TrueNAS portal up</td></tr>
+<tr><td class="n">23</td><td>db01 reads LUN capacity <span class="ok">pass</span></td><td>iSCSI login + read → db01 can use its 10 GiB disk</td></tr>
+<tr><td class="n">24</td><td>db01 → backup LUN <span class="blocked">block</span></td><td>login to the other target → TrueNAS ACL denies it</td></tr>
+<tr><td class="n">25</td><td>backup01 reads its LUN <span class="ok">pass</span></td><td>iSCSI login + read → backup01 can use its 4 GiB disk</td></tr>
+<tr><td class="n">26</td><td>storage VLAN not routed <span class="blocked">block</span></td><td>web01 → 10.10.30.10 → VLAN 30 has no gateway</td></tr>
+<tr><td class="n">27</td><td>fresh backup, checksum valid <span class="ok">pass</span></td><td><code>backup.sh status</code> → last backup less than 26 h old and intact</td></tr>
+<tr><td class="n">28</td><td>fw-02 standby ready <span class="ok">pass</span></td><td>OSPF Full with both edges and both cores → it can take over at any time</td></tr>
+<tr><td class="n">29</td><td>fw-01 owns the DMZ gateway <span class="ok">pass</span></td><td>10.10.60.1 on fw-01's eth5 → normal state of the pair</td></tr>
+<tr><td class="n">30</td><td>BFD up on fw-01 <span class="ok">pass</span></td><td>4 BFD sessions up → link failures detected in under a second</td></tr>
+<tr><td class="n">31</td><td>fw-02 holds fw-01's connections <span class="ok">pass</span></td><td>the DMZ → MariaDB connection of check 19 is in fw-02's table → conntrackd works</td></tr>
+<tr><td class="n">32</td><td>syslog01 receives switch logs <span class="ok">pass</span></td><td>a <code>core*.log</code> exists → centralized logging works</td></tr>
+<tr><td class="n">33</td><td>noc-ws receives them too <span class="ok">pass</span></td><td>same on the second collector → logging has no single point of failure</td></tr>
 </tbody></table>
 
 <!-- ================================================================== 13 -->
 <h2>13. Failover demonstrations</h2>
-<div class="how keep"><b class="t">How it works.</b> <code>./scripts/tests.sh failover</code> breaks four things on purpose and measures
+<div class="how keep"><b class="t">How it works.</b> <code>./scripts/tests.sh failover</code> breaks six things on purpose and measures
 the impact with a fast ping (5 per second), restoring each one automatically:<br>
 <b>ISP failover</b> — the ISP A link of edge-r1 is cut. edge-r1 loses its default route, so OSPF withdraws it; fw-01 switches to
 the default from edge-r2 (cost 20) within about one OSPF dead interval. Then the link is restored and traffic returns to ISP A.<br>
 <b>Core failover</b> — core-01's VLAN 20 interface (the VRRP master) is shut. core-02 stops hearing VRRP advertisements and
 becomes Master of <code>10.10.20.1</code>; servers keep the same gateway address. When core-01 comes back it preempts
 (priority 110) and becomes Master again.<br>
-<b>Firewall failover</b> — all five cables of fw-01 are cut. OSPF declares it dead after 3 s and every router reroutes through
-fw-02; keepalived moves the DMZ gateway <code>10.10.60.1</code> to fw-02; the website stays reachable. Connections open at that
-moment must reconnect (the two firewalls do not share their connection table).<br>
+<b>Firewall failover</b> — all five cables of fw-01 are cut while web01 pings the Internet <i>and</i> downloads a file from
+ISP A (iperf3). BFD sees the dead links in under a second, every router reroutes through fw-02, keepalived moves the DMZ
+gateway <code>10.10.60.1</code>; the download keeps running because fw-02 already has the connection (conntrackd). fw-01 is
+then brought back gracefully: maximum OSPF cost until its four neighbors are up, so its return loses nothing.<br>
 <b>Website failover</b> — web-dmz01, owner of <code>www.dc.lab</code>, is cut. web-dmz02 stops hearing its VRRP advertisements,
 takes <code>10.10.60.20</code> and serves the site alone; web-dmz01 takes it back when it returns.<br>
+<b>Intranet failover</b> — web01 (rack A) is cut; web02 (rack B) takes <code>intranet.dc.lab</code> within a second.<br>
+<b>DNS failover</b> — named is stopped on dns01; a lookup from web01 is answered by ad01, the secondary.<br>
 <b>Core load sharing</b> — <code>./scripts/tests.sh loadshare</code> shows the VRRP masters on both cores, sends 200 pings from
 web01 (servers) and from pc-01 (users) and counts the packets each core received, then shuts core-02's VLAN 50 interface
 while pc-01 pings its gateway: core-01 takes the users over and gives them back when core-02 returns.</div>
 <table><thead><tr><th>Command</th><th>Expected result → why it matters</th></tr></thead><tbody>
 <tr><td class="cmd">./scripts/tests.sh</td><td><span class="ok">27 passed, 0 failed</span> <span class="why">→ the whole design works (section 12)</span></td></tr>
-<tr><td class="cmd">./scripts/tests.sh failover</td><td><span class="exp">ISP ≈ 0.2 s · core VRRP ≈ 2.8 s · firewall ≈ 4.6 s · website ≈ 3.0 s</span> <span class="why">→ redundancy works; the numbers are the failover times (links are restored automatically)</span></td></tr>
+<tr><td class="cmd">./scripts/tests.sh failover</td><td><span class="exp">ISP ≈ 0.2 s · core VRRP ≈ 2.8 s · firewall ≈ 0.2 s (download uninterrupted) · website ≈ 0.8 s · intranet ≈ 0.8 s · DNS ≈ 40 ms</span> <span class="why">→ redundancy works; the numbers are the failover times (links are restored automatically)</span></td></tr>
 <tr><td class="cmd">./scripts/tests.sh loadshare</td><td><span class="exp">web01: core-01 201 / core-02 0 · pc-01: core-01 0 / core-02 201 · user failover ≈ 2.4 s</span> <span class="why">→ both cores work at the same time, each one backs up the other</span></td></tr>
 </tbody></table>
 <div class="keep">
@@ -398,8 +417,9 @@ docker exec clab-mini-dc-edge-r1 ip link set eth1 down
 docker exec clab-mini-dc-fw-01 vtysh -c "show ip route 0.0.0.0/0"     <span class="c"># now via edge-r2 (10.0.1.5)</span>
 docker exec clab-mini-dc-edge-r1 ip link set eth1 up</pre>
 </div>
-<p>Measured results (11 Nov 2026): ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway (VRRP) ≈ <b>2.8 s</b> · user gateway to
-core-01 ≈ <b>2.4 s</b> · firewall fw-01 → fw-02 ≈ <b>4.6 s</b> · website web-dmz01 → web-dmz02 ≈ <b>3.0 s</b>, no loss on failback.</p>
+<p>Measured results (11 Nov 2026, after the single-point-of-failure work): ISP failover ≈ <b>0.2 s</b> (1 lost ping) · core gateway (VRRP) ≈ <b>2.8 s</b> · user gateway to
+core-01 ≈ <b>2.4 s</b> · firewall fw-01 → fw-02 ≈ <b>0.2 s</b>, a TCP download through it never stops · website ≈ <b>0.8 s</b> ·
+intranet ≈ <b>0.8 s</b> · DNS lookup with dns01 down ≈ <b>40 ms</b> · no loss when the failed devices come back.</p>
 
 <h3>Database failover (MariaDB high availability)</h3>
 <div class="how keep"><b class="t">How it works.</b> db01 (primary, rack B) replicates every change live to <b>db02</b> (replica,
@@ -428,18 +448,18 @@ timeout). The outage runs from the failure to the first successful write on the 
 <p>Results of this guide on the reference lab (11 Nov 2026). Tick each line during a demo or after a change.</p>
 <table><thead><tr><th>Area</th><th>Expected</th><th>Result</th></tr></thead><tbody>
 <tr><td>Edge &amp; ISPs</td><td>both edges reach 8.8.8.8 · OSPF Full · NAT + port-forward present</td><td class="ok">PASS</td></tr>
-<tr><td>Firewalls</td><td>fw-01 and fw-02: 4 OSPF neighbors each · fw-01 owns 10.10.60.1 · default via edge-r1 · 8 allowed flows work · 7 forbidden flows dropped and counted</td><td class="ok">PASS</td></tr>
+<tr><td>Firewalls</td><td>fw-01 and fw-02: 4 OSPF neighbors and 4 BFD sessions each · connections synced · fw-01 owns 10.10.60.1 · default via edge-r1 · 8 allowed flows work · 7 forbidden flows dropped and counted</td><td class="ok">PASS</td></tr>
 <tr><td>Core</td><td>VRRP load sharing (core-01 VLAN 20/40, core-02 VLAN 50/70) · Po1 up · MST roots split · OSPF FULL · default route</td><td class="ok">PASS</td></tr>
 <tr><td>Top-of-Rack</td><td>ports connected · MACs learned · one uplink alternate · Po1 up</td><td class="ok">PASS</td></tr>
-<tr><td>Servers &amp; DNS</td><td>gateway, cross-rack, Internet, intranet · internal + forwarded names</td><td class="ok">PASS</td></tr>
+<tr><td>Servers &amp; DNS</td><td>gateway, cross-rack, Internet · intranet and API virtual IPs · internal + forwarded names · ad01 secondary holds the zone</td><td class="ok">PASS</td></tr>
 <tr><td>DMZ</td><td>HTTPS via both ISPs, trusted certificate · HTTP → 301 · both servers used · DMZ → MariaDB allowed</td><td class="ok">PASS</td></tr>
 <tr><td>Security</td><td>pivot, users → DB, backup → API and routed SAN blocked · old password refused · no lab folder on PCs / DMZ</td><td class="ok">PASS</td></tr>
 <tr><td>SAN (TrueNAS)</td><td>own LUN visible and readable · other LUN denied · web UI reachable</td><td class="ok">PASS</td></tr>
 <tr><td>Backups</td><td>backup OK (DB, 4/4 configs, SAN copy) · restore test PASSED from disk and from TrueNAS · reported to the NOC</td><td class="ok">PASS</td></tr>
-<tr><td>NOC</td><td>syslog files per device · NOC → firewall · SNMP answers</td><td class="ok">PASS</td></tr>
+<tr><td>NOC</td><td>syslog files per device on both collectors · NOC → firewall · SNMP answers</td><td class="ok">PASS</td></tr>
 <tr><td>Database HA</td><td>db02 replicating · crash failover ≈ 2.3 s · server failover ≈ 3.8 s · no data lost · restore OK</td><td class="ok">PASS</td></tr>
-<tr><td>Failover</td><td>ISP ≈ 0.2 s · core ≈ 2.8 s · firewall ≈ 4.6 s · website ≈ 3.0 s · everything back to normal afterwards</td><td class="ok">PASS</td></tr>
-<tr><td>Automated</td><td><code>./scripts/tests.sh</code> → 27 passed, 0 failed</td><td class="ok">PASS</td></tr>
+<tr><td>Failover</td><td>ISP ≈ 0.2 s · core ≈ 2.8 s · firewall ≈ 0.2 s, TCP kept · website / intranet ≈ 0.8 s · DNS ≈ 40 ms · everything back to normal afterwards</td><td class="ok">PASS</td></tr>
+<tr><td>Automated</td><td><code>./scripts/tests.sh</code> → 33 passed, 0 failed</td><td class="ok">PASS</td></tr>
 </tbody></table>
 
 <h2>Lab start / stop reminder</h2>
@@ -447,7 +467,7 @@ timeout). The outage runs from the failure to the first successful write on the 
 ./deploy.sh                          <span class="c"># start: 5-8 min, never press Ctrl+C
                                      # after a reboot it offers to destroy the old copy: answer y</span>
 <span class="c"># wait 2-4 min for TrueNAS to boot</span>
-./scripts/tests.sh | tail -3         <span class="c"># check: 27 passed</span>
+./scripts/tests.sh | tail -3         <span class="c"># check: 33 passed</span>
 python3 scripts/zabbix-add-hosts.py  <span class="c"># re-register Zabbix hosts</span>
 
 <span class="c"># stop - always before shutting down the laptop</span>
