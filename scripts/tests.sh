@@ -86,7 +86,7 @@ functional() {
   check "web01 clock synchronised to dns01/ad01 (NTP)" pass x web01 sh -c "chronyc -c tracking | grep -q ',Normal$'"
   check "Zabbix agents answer, encrypted (web01, fw-01)" pass zg_agents
   check "Zabbix reads the BMS sensors (hall A)"      pass zg_bms
-  check "Zabbix: no active problem"                  pass python3 scripts/zabbix-setup.py problems
+  check "Zabbix: no problem of average severity or worse" pass python3 scripts/zabbix-setup.py problems
 
   echo; echo "== Security"
   check "intranet: HTTP redirected to HTTPS"          pass x pc-01 sh -c "curl -s -o /dev/null -w '%{http_code}' -m3 http://intranet.dc.lab | grep -q 301"

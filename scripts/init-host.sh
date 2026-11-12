@@ -146,14 +146,18 @@ CONF
     mkdir -p /run/named && chown bind:bind /run/named /var/cache/bind
     # at boot the switches may not forward yet, and after a failed transfer BIND caches dns01 as unreachable and
     # stops trying. Watchdog (background, first 10 min): while ad01 has no zone but dns01 answers, restart named.
-    ( for _ in $(seq 60); do
-        dig +short +time=1 +tries=1 @127.0.0.1 dc.lab SOA | grep -q . && break
-        if dig +short +time=1 +tries=1 @10.10.20.40 dc.lab SOA | grep -q .; then
-          pkill -x named; while pidof named >/dev/null; do sleep 0.2; done
+    # (nohup: a plain background subshell dies when the boot command of containerlab ends; dig +short prints its
+    #  errors on stdout, so match the SOA answer itself)
+    nohup sh -c 'soa() { dig +short +time=1 +tries=1 @$1 dc.lab SOA | grep -q "admin.dc.lab"; }
+      miss=0
+      for i in $(seq 60); do
+        soa 127.0.0.1 && exit 0
+        if soa 10.10.20.40; then miss=$((miss + 1)); else miss=0; fi
+        if ! pidof named >/dev/null; then named -u bind -4
+        elif [ $miss -ge 2 ]; then pkill -x named; while pidof named >/dev/null; do sleep 0.2; done; named -u bind -4; miss=0
         fi
-        pidof named >/dev/null || named -u bind -4 </dev/null >/dev/null 2>&1
         sleep 10
-      done ) </dev/null >/dev/null 2>&1 &
+      done' </dev/null >/dev/null 2>&1 &
     return
   fi
   cat > /etc/bind/named.conf.local <<'CONF'
@@ -266,22 +270,28 @@ start_db_replica() {  # db02: copy of db01, then live replication from it
 
 start_keepalived() {  # $1 = VRRP priority (db01 110, db02 100); nopreempt = no automatic failback
   install -m 755 /lab/scripts/db-promote.sh /usr/local/sbin/db-promote.sh
+  # VRRPv3, adverts every 0.2 s: a dead server is noticed in ~0.7 s; MariaDB is checked every second and one
+  # failed check (1 s timeout) is enough to hand the address over
   cat > /etc/keepalived/keepalived.conf <<CONF
-global_defs { enable_script_security; script_user root }
+global_defs {
+    enable_script_security
+    script_user root
+}
 vrrp_script chk_mariadb {
     script "/usr/bin/mariadb-admin --connect-timeout=1 ping"
     interval 1
-    timeout 2
-    fall 2
+    timeout 1
+    fall 1
     rise 2
 }
 vrrp_instance DB {
+    version 3
     state BACKUP
     nopreempt
     interface eth1
     virtual_router_id 35
     priority $1
-    advert_int 1
+    advert_int 0.2
     virtual_ipaddress { $DB_VIP/24 dev eth1 }
     track_script { chk_mariadb }
     notify_master "/usr/local/sbin/db-promote.sh"
@@ -338,7 +348,7 @@ CONF
 $SWITCH_USER Cleartext-Password := "$SWITCH_PASS"
         Arista-AVPair = "shell:priv-lvl=15"
 CONF
-  sed -i 's/^\(\s*destination = \).*/\1syslog/; s/^\(\s*auth = \)no/\1yes/; s/^\(\s*auth_badpass = \)no/\1yes/' $R/radiusd.conf
+  sed -i 's/^\(\s*destination = \).*/\1syslog/; s/^\(\s*auth = \)no/\1yes/' $R/radiusd.conf   # auth_badpass stays off: it would log mistyped passwords in clear
   mkdir -p /run/freeradius && chown freerad:freerad /run/freeradius
   freeradius </dev/null >/dev/null 2>&1
 }

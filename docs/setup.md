@@ -259,7 +259,7 @@ Wait ~30 s for OSPF and spanning tree to converge, then:
 ./scripts/tests.sh
 ```
 
-✅ **Check** — last line: **`Result: 39 passed, 0 failed`** (the backup check needs the first backup, 6 min after deploy).
+✅ **Check** — last line: **`Result: 50 passed, 0 failed`** (the backup check needs the first backup, 6 min after deploy).
 A test failed? Wait a minute and run it again, then see [Troubleshooting](troubleshooting.md).
 
 `deploy.sh` has already configured Zabbix (hosts, checks, alarms, dashboard). Open <http://localhost:8080>

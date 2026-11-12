@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Configures Zabbix for the lab through its API. Run by deploy.sh after every deploy; safe to re-run.
     python3 scripts/zabbix-setup.py            hosts, data center checks, alarms (triggers) and the dashboard
-    python3 scripts/zabbix-setup.py problems   list the current problems (exit code 1 if any, for tests.sh)
+    python3 scripts/zabbix-setup.py problems   list the current problems (exit code 1 if any is average or worse)
 Zabbix web UI: http://localhost:8080 - user Admin, password ZBX_ADMIN_PASS from lab.env (the default "zabbix"
 password is replaced on the first run). Dashboard: Dashboards -> "RAM+ Data Center".
 Everything is polled by monitor01 over the OOB management network: the switches by SNMPv3 (SHA + AES), every other
@@ -253,7 +253,8 @@ def problems():
     for t in trig:
         print(f"  {names[int(t['priority'])]:<8} {t['hosts'][0]['host'] if t['hosts'] else '':<10} {t['description']}")
     print(f"  {len(trig)} active problem(s)")
-    return 1 if trig else 0
+    # warnings (e.g. the Arista template's "host has been restarted" for 10 min after a deploy) do not fail tests.sh
+    return 1 if any(int(t["priority"]) >= 3 for t in trig) else 0
 
 
 connect()

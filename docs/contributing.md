@@ -6,7 +6,7 @@
 
 1. **Update** — `git pull` on `main` before you start.
 2. **Branch** — one branch per task: `git switch -c feature/<topic>`.
-3. **Test** — `./scripts/tests.sh` must say `39 passed`; for database changes also run `./scripts/db-failover.sh`.
+3. **Test** — `./scripts/tests.sh` must say `50 passed`; for database changes also run `./scripts/db-failover.sh`.
 4. **Push** — `git push -u origin feature/<topic>`, then open a pull request and paste the test result.
 5. **Review & merge** — no direct pushes to `main`.
 
@@ -47,6 +47,7 @@ After pulling a change to `images/` (Dockerfiles), run `./setup.sh` to rebuild t
 | `images/` | Dockerfiles for `dc-router`, `dc-host`, `dc-truenas` and `dc-kali` (attacker) |
 | `lab.env.example` | Template of `lab.env` (the real file is generated and never committed) |
 | `truenas/` | TrueNAS ISO and VM disks (local only, not in git) |
+| `docs/runbooks.md` | Incident procedures per Zabbix alarm, concurrent maintenance, disaster recovery, RTO / RPO |
 | `docs/` | This documentation, the architecture diagram, the TopoViewer screenshot and the testing guide |
 | `CLAUDE.md` | Notes for the Claude Code assistant: environment, commands, lessons learned |
 

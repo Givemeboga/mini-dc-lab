@@ -40,7 +40,8 @@ restore)
   M=$(owner); [ -z "$M" ] && { echo "Nobody owns the VIP - redeploy the lab."; exit 1; }
   F=$(other "$M")
   echo "== Rebuilding $F as replica of the current primary $M"
-  docker exec "$P-$F" pkill keepalived; sleep 1                       # never let it fight for the VIP
+  # never let it fight for the VIP; wait until the old keepalived is gone (it takes ~1 s to stop)
+  docker exec "$P-$F" sh -c 'pkill -x keepalived; while pidof keepalived >/dev/null; do sleep 0.2; done'
   docker exec "$P-$F" ip link set eth1 up
   if ! docker exec "$P-$F" mariadb -e 'select 1' >/dev/null 2>&1; then
     # the killed mariadbd stays a zombie (the container's PID 1 never reaps it) and its pid file makes

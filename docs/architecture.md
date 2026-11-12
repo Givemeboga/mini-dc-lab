@@ -126,7 +126,8 @@ EDGE-R1      EDGE-R2        FRRouting · NAT · port-forward 80/443 to www.dc.la
   GTID replication. keepalived (VRRP group 35) on both shares the database virtual IP `10.10.20.35`
   (`db.dc.lab`) and checks MariaDB every second. If MariaDB or the whole server fails, the replica takes the
   address and `db-promote.sh` makes it writable — no client change. Measured with `scripts/db-failover.sh`
-  (a write every 0.2 s): **MariaDB crash ≈ 2.3 s**, **server offline ≈ 3.8 s**, no acknowledged write lost.
+  (a write every 0.2 s): **MariaDB crash ≈ 0.6 s**, **server offline ≈ 1.3 s** (keepalived VRRPv3, 0.2 s adverts),
+  no acknowledged write lost.
   No automatic failback: `restore` rebuilds the failed node as the new replica.
 - **SAN** — `storage01` is a container running **TrueNAS SCALE 25.10** as a KVM virtual machine
   (`scripts/init-truenas.sh`). Its SAN NIC is bridged onto the container's `eth1` cable to `storage-sw`, so TrueNAS

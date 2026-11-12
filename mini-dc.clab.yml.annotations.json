@@ -712,6 +712,32 @@
       "fontWeight": "bold",
       "textAlign": "center",
       "width": 240
+    },
+    {
+      "id": "nd-kali",
+      "text": "attacker · 203.0.113.10",
+      "position": {
+        "x": 712,
+        "y": -103
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 200
+    },
+    {
+      "id": "nd-bms01",
+      "text": "BMS · UPS / cooling (simulated)",
+      "position": {
+        "x": 2275,
+        "y": 848
+      },
+      "fontSize": 19,
+      "fontColor": "#334155",
+      "fontWeight": "bold",
+      "textAlign": "center",
+      "width": 240
     }
   ],
   "freeShapeAnnotations": [
@@ -1413,6 +1439,26 @@
       },
       "icon": "dc-server",
       "groupId": "g-s2",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "kali",
+      "position": {
+        "x": 757,
+        "y": -237
+      },
+      "icon": "dc-pc",
+      "groupId": "g-internet",
+      "labelPosition": "bottom"
+    },
+    {
+      "id": "bms01",
+      "position": {
+        "x": 2340,
+        "y": 714
+      },
+      "icon": "dc-server",
+      "groupId": "g-noc",
       "labelPosition": "bottom"
     }
   ],

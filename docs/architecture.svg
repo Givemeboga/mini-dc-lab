@@ -91,7 +91,7 @@
 
   <!-- ============================================================ HEADER -->
   <text x="30" y="50" class="title">RAM+ Data Center — Network &amp; Building Architecture</text>
-  <text x="31" y="74" class="sub">Containerlab lab · 35 nodes · 43 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 39/39 tests</text>
+  <text x="31" y="74" class="sub">Containerlab lab · 36 nodes · 44 links · Arista cEOS · FRRouting · nftables · Zabbix — as deployed on WSL2, validated 50/50 tests</text>
 
   <!-- Legend (top right) -->
   <g transform="translate(1418,30)">
@@ -457,7 +457,7 @@
   <text x="1550" y="650" text-anchor="middle" class="r">PostgreSQL 16</text>
   <text x="1550" y="662" text-anchor="middle" class="ip">10.10.10.52</text>
   <rect x="1200" y="678" width="420" height="24" rx="12" fill="#e2e8f0"/>
-  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 35 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
+  <text x="1410" y="694" text-anchor="middle" class="ps" fill="#334155">dc-oob · eth0 of all 36 nodes · SSH / eAPI / SNMP in VRF MGMT</text>
 
   <!-- ============================================================ LINK TYPES -->
   <rect x="1170" y="750" width="480" height="168" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
@@ -481,7 +481,7 @@
   <g class="pt">
     <use href="#check" x="1188" y="976" width="13" height="13"/><text x="1207" y="987">Dual ISP failover via OSPF (≈0.2 s)</text>
     <use href="#check" x="1188" y="1000" width="13" height="13"/><text x="1207" y="1011">VRRP load sharing + failover (≈2.8 s)</text>
-    <use href="#check" x="1188" y="1024" width="13" height="13"/><text x="1207" y="1035">LACP on core &amp; ToR</text>
+    <use href="#check" x="1188" y="1024" width="13" height="13"/><text x="1207" y="1035">Suricata IDS · auto-block · Kali demo</text>
     <use href="#check" x="1188" y="1048" width="13" height="13"/><text x="1207" y="1059">MSTP · one root per VLAN group</text>
     <use href="#check" x="1188" y="1072" width="13" height="13"/><text x="1207" y="1083">HTTPS LB · intranet / API VIPs ≈0.8 s</text>
     <use href="#check" x="1188" y="1096" width="13" height="13"/><text x="1207" y="1107">Firewall pair · BFD · conntrackd ≈0.2 s</text>
@@ -489,8 +489,8 @@
     <use href="#check" x="1420" y="1000" width="13" height="13"/><text x="1439" y="1011">Isolated iSCSI SAN · per-host ACL</text>
     <use href="#check" x="1420" y="1024" width="13" height="13"/><text x="1439" y="1035">Host firewall on every server</text>
     <use href="#check" x="1420" y="1048" width="13" height="13"/><text x="1439" y="1059">Nightly backups + restore test</text>
-    <use href="#check" x="1420" y="1072" width="13" height="13"/><text x="1439" y="1083">Zabbix SNMP + ICMP · syslog</text>
-    <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">MariaDB HA · failover ≈2.3 s</text>
+    <use href="#check" x="1420" y="1072" width="13" height="13"/><text x="1439" y="1083">TLS inside · RADIUS · Zabbix alarms</text>
+    <use href="#check" x="1420" y="1096" width="13" height="13"/><text x="1439" y="1107">MariaDB HA · failover ≈0.6 s</text>
   </g>
   <line x1="1188" y1="1124" x2="1632" y2="1124" stroke="#e2e8f0"/>
   <text x="1188" y="1142" class="ps">Changed from the original design: pfSense → FRR + nftables · HSRP → VRRP ·</text>

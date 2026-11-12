@@ -14,7 +14,7 @@ cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
                                       # after a reboot it offers to destroy the old copy: answer y
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 39 passed, 0 failed
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 50 passed, 0 failed
                                       # deploy.sh also configures Zabbix (python3 scripts/zabbix-setup.py)
 ```
 
@@ -33,7 +33,7 @@ virtual disks, so nothing has to be reinstalled.
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Start the lab (5–8 min) |
-| `./scripts/tests.sh` | 39 functional checks |
+| `./scripts/tests.sh` | 50 functional checks |
 | `./scripts/tests.sh failover` | ISP, core gateway, firewall, website, intranet and DNS failover demo |
 | `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
 | `./scripts/db-failover.sh status` | Database: who owns the virtual IP, is the standby in sync |
@@ -146,8 +146,8 @@ write one row every 0.2 s, breaks the primary, and reports how long writes faile
 | Command | Purpose |
 |---|---|
 | `status` | Read-only check: who owns `10.10.20.35`, is the standby replicating (`Yes / Yes`, 0 s behind) |
-| *(no argument)* | **MariaDB crashes** on the primary → the standby takes over. Measured **≈ 2.3 s**, no data lost |
-| `server` | **The whole primary server goes offline** (link cut) → detected by missing heartbeats. Measured **≈ 3.8 s** |
+| *(no argument)* | **MariaDB crashes** on the primary → the standby takes over. Measured **≈ 0.6 s**, no data lost |
+| `server` | **The whole primary server goes offline** (link cut) → detected by missing heartbeats. Measured **≈ 1.3 s** |
 | `restore` | Rebuild the failed server as the new standby (≈ 7 s). Roles stay swapped — the next test fails over the other way |
 
 Typical demo: `status` → *(crash)* → `restore` → `server` → `restore`. Redeploying also resets db01 as primary.

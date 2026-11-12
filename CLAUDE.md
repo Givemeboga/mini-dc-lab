@@ -34,7 +34,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/truenas-setup.py` | Idempotent TrueNAS config over JSON-RPC WebSocket (stdlib client): SAN IP, pool `tank`, zvols, iSCSI targets + `auth_networks` ACL |
 | `scripts/db-failover.sh` | DB HA test: `status` · crash (default) · `server` · `restore`; measures write outage from app01 |
 | `scripts/db-promote.sh` | keepalived notify_master: STOP/RESET SLAVE + read_only=OFF on the new VIP owner |
-| `scripts/tests.sh` | 39 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
+| `scripts/tests.sh` | 50 functional checks; `failover` = ISP, VRRP, firewall (+TCP stream), website, intranet, DNS; `loadshare` = core load sharing |
 | `scripts/zabbix-setup.py` | Zabbix via API (run by deploy.sh): hosts, custom agent items + triggers, dashboard; `problems` lists active ones. Admin / ZBX_ADMIN_PASS |
 | `scripts/init-ops.sh` | run by init-host/init-router: rsyslog forward to both collectors (OOB), chrony (-x), zabbix_agentd with role UserParameters |
 | `scripts/ids.sh` | edges: Suricata on eth1 (ET Open selection baked in dc-router + configs/suricata/dc-lab.rules), auto-block in nft set `inet edge blocklist` (10 min) |
@@ -49,10 +49,10 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 ```bash
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
-./scripts/tests.sh                                   # expect 39 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
+./scripts/tests.sh                                   # expect 50 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
 ./scripts/backup.sh run | restore-test               # backup now / prove it restores (local + TrueNAS copy)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password
-./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈2.3 s, server offline ≈3.8 s
+./scripts/db-failover.sh [status|server|restore]     # DB failover: crash ≈0.6 s, server offline ≈1.3 s
 ./scripts/tests.sh failover                          # ISP ≈0.2 s, VRRP ≈2.8 s measured
 containerlab destroy -t mini-dc.clab.yml --cleanup   # stop
 docker exec clab-mini-dc-core-01 Cli -p 15 -c "show vrrp brief"
@@ -126,6 +126,12 @@ docker exec -it clab-mini-dc-fw-01 vtysh
   `aaa authentication login default group NETADMIN local` -> local admin works only when RADIUS is unreachable, so tools
   (backup.sh eAPI) use SWITCH_USER=netadmin. MariaDB clients use TLS by default (10.11); `REQUIRE SSL` on web/app/repl/backup.
   kali: eth0 down + /lab unmounted (attacker gets no management access, no secrets).
+- cEOS VRRP: `vrrp N advertisement interval` is in whole seconds (1 = default, also with ipv4 version 3) -> core
+  gateway failover stays ≈ 2.8 s; keepalived (Linux) can do 0.2 s, so DB/web/app/fw VIPs fail over in < 1.5 s.
+- `dig +short` prints errors (";; communications error…") on stdout -> never test it with `grep -q .`; ad01's
+  named watchdog matches "admin.dc.lab" and runs under nohup (background subshells die when the clab exec ends).
+- NTP: two servers that disagree are both rejected (falsetickers) -> clients `prefer trust` dns01. FreeRADIUS:
+  keep `auth_badpass = no` (it would log mistyped passwords in clear).
 - Zabbix agent runs as user zabbix: MariaDB via `zabbix@localhost` unix_socket (REPLICATION CLIENT, SLAVE MONITOR),
   vtysh needs groups frr + frrvty. Agents listen on the OOB IP only; monitor01 has `zabbix_get` for tests.
 - Writing to the iSCSI LUN from a container: no kernel initiator in WSL → `qemu-img convert -n … iscsi://` /

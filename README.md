@@ -12,7 +12,7 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 ![TrueNAS](https://img.shields.io/badge/TrueNAS_SCALE-25.10-0095d5)
 ![MariaDB HA](https://img.shields.io/badge/MariaDB-HA_keepalived-c0765a)
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.0-d40000)
-![Tests](https://img.shields.io/badge/tests-39%2F39_passing-22a06b)
+![Tests](https://img.shields.io/badge/tests-50%2F50_passing-22a06b)
 
 *School project — ESPRIT, cybersecurity & cloud engineering*
 
@@ -46,7 +46,7 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 |---|---|---|
 | ISP failover | each edge announces its default route in OSPF (cost 10 / 20) | **≈ 0.2 s** |
 | Gateway failover | VRRP on the cores, servers keep the `.1` gateway | **≈ 2.8 s** |
-| Database failover | MariaDB replication + keepalived virtual IP `10.10.20.35` | **≈ 2.3 s** crash · **≈ 3.8 s** server offline · no data lost |
+| Database failover | MariaDB replication + keepalived virtual IP `10.10.20.35` | **≈ 0.6 s** crash · **≈ 1.3 s** server offline · no data lost |
 | Firewall failover | fw-01 isolated → BFD + OSPF reroute through fw-02, DMZ gateway moves, open connections kept (conntrackd) | **≈ 0.2 s**, TCP download uninterrupted |
 | Website failover | web-dmz01 cut → web-dmz02 takes `www.dc.lab` | **≈ 0.8 s** |
 | Intranet failover | web01 cut → web02 takes `intranet.dc.lab` (other rack) | **≈ 0.8 s** |
@@ -54,7 +54,7 @@ No GNS3 VM — just WSL2, Docker and Containerlab.
 | Backup & restore | nightly job + `backup.sh restore-test` (local and TrueNAS copies) | restored, row counts match |
 | Firewall policy | nftables default drop + host firewalls — allowed and forbidden flows checked rule by rule | allowed / blocked as designed |
 | Storage isolation | per-server iSCSI target, SAN VLAN not routed | other LUN denied |
-| Automated checks | `./scripts/tests.sh` | **39 / 39 passing** |
+| Automated checks | `./scripts/tests.sh` | **50 / 50 passing** |
 
 ## Quick start
 
@@ -64,7 +64,7 @@ Already installed? From the Ubuntu terminal:
 cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 39 passed, 0 failed
+./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 50 passed, 0 failed
 ./scripts/tests.sh monitoring        # Zabbix demo: http://localhost:8080 (Admin / password in lab.env)
 ```
 
@@ -86,6 +86,7 @@ containerlab destroy -t mini-dc.clab.yml --cleanup
 | **[Daily use](docs/operations.md)** | start / stop the lab, find a command, a console or a web UI, run the failover tests |
 | **[Architecture](docs/architecture.md)** | understand the design: mapping to the buildings, addressing, how each feature works |
 | **[Testing guide (PDF)](docs/testing-guide/RAM+_Data_Center_Testing_Guide.pdf)** | demo or verify every layer, with the expected result and why it matters |
+| **[Runbooks & disaster recovery](docs/runbooks.md)** | react to an alarm, maintain without downtime, recover after a disaster (RTO / RPO) |
 | **[Troubleshooting](docs/troubleshooting.md)** | fix something that does not work |
 | **[Team workflow](docs/contributing.md)** | change something: branches, tests, repository layout, updating the docs |
 
@@ -105,4 +106,4 @@ Full file list: [Team workflow → Repository layout](docs/contributing.md#repos
 Validated on Windows 11 Home + WSL2 (Ubuntu 24.04, 32 GB RAM): VRRP, LACP, MSTP, OSPF, ISP failover,
 firewall pair, NAT / port-forwards, firewall + host firewall policy, HTTPS load balancer, DNS, database high
 availability, backups with restore test, iSCSI on TrueNAS SCALE with per-server ACL, storage isolation, syslog —
-**39/39 automated checks passing**.
+**50/50 automated checks passing**.
