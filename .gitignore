@@ -27,3 +27,6 @@ truenas/
 
 # Python bytecode
 __pycache__/
+
+# test-all.sh reports
+logs/
