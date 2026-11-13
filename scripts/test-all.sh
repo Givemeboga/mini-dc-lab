@@ -27,7 +27,7 @@ LOG=logs/tests-$(date +%Y%m%d-%H%M%S); mkdir -p "$LOG"
 if [ -t 1 ]; then G=$'\e[32m'; R=$'\e[31m'; Y=$'\e[33m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'; else G= R= Y= B= D= N=; fi
 RESULTS=()          # "name|PASS/FAIL|detail|seconds"
 
-line()  { printf "    %-34s %s\n" "$1" "$2"; }
+line()  { printf "    %-36s %s\n" "$1" "$2"; }
 ok()    { printf "%s✔%s" "$G" "$N"; }
 ko()    { printf "%s✘%s" "$R" "$N"; }
 mark()  { [ "$1" = 1 ] && ok || ko; }
@@ -82,7 +82,7 @@ t_functional() {
   local f="$LOG/functional.log"
   # one line per section: "Connectivity 10/10", failed checks listed under it
   awk -v G="$G" -v R="$R" -v N="$N" '
-    function flush() { if (sec != "" && tot > 0) printf "    %-34s %s %d / %d\n", sec, (pass == tot ? G "✔" N : R "✘" N), pass, tot
+    function flush() { if (sec != "" && tot > 0) printf "    %-36s %s %d / %d\n", sec, (pass == tot ? G "✔" N : R "✘" N), pass, tot
                        for (i = 1; i <= nf; i++) printf "        %s✘ %s%s\n", R, fails[i], N
                        tot = pass = nf = 0 }
     /^== / { flush(); sec = substr($0, 4); next }
@@ -240,6 +240,6 @@ for r in "${RESULTS[@]}"; do
   printf "%-30s %s%-6s%s %-8s %s\n" "$name" "$c" "$st" "$N" "$(dur "$t")" "$det"
 done
 echo
-if [ $fails -eq 0 ]; then printf "%s✔ All %d suites passed%s in %s\n" "$G" "${#RESULTS[@]}" "$N" "$(dur $((SECONDS - T0)))"
+if [ $fails -eq 0 ]; then printf "%s✔ All %d suite(s) passed%s in %s\n" "$G" "${#RESULTS[@]}" "$N" "$(dur $((SECONDS - T0)))"
 else printf "%s✘ %d of %d suites failed%s in %s - details in %s\n" "$R" $fails "${#RESULTS[@]}" "$N" "$(dur $((SECONDS - T0)))" "$LOG"; fi
 exit $((fails > 0))

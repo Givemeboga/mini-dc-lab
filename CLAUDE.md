@@ -38,6 +38,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 | `scripts/zabbix-setup.py` | Zabbix via API (run by deploy.sh): hosts, custom agent items + triggers, dashboard; `problems` lists active ones. Admin / ZBX_ADMIN_PASS |
 | `scripts/init-ops.sh` | run by init-host/init-router: rsyslog forward to both collectors (OOB), chrony (-x), zabbix_agentd with role UserParameters |
 | `scripts/ids.sh` | edges: Suricata on eth1 (ET Open selection baked in dc-router + configs/suricata/dc-lab.rules), auto-block in nft set `inet edge blocklist` (10 min) |
+| `scripts/test-all.sh` | Runs every suite (tests.sh modes, backup restore-test, db-failover crash/server + restore) with a short report; `full` or suite names; output in git-ignored `logs/` |
 | `scripts/attack.sh` | kali attacks (web / recon / bruteforce), `status`, `unblock`; demo: `tests.sh attack` |
 | `scripts/secure-switches.sh` | run by deploy.sh: RADIUS AAA (ad01), SNMPv3 user zabbix, random local admin, removes community dclab |
 | `scripts/facility.sh` | BMS simulator on bms01 (`run` daemon) + `status`/`cooling-failure`/`power-failure`/`generator-failure`/`restore` |
@@ -49,6 +50,7 @@ here). Everything runs as containers, except TrueNAS, which runs as a KVM VM *in
 
 ```bash
 ./deploy.sh                                          # start (5–8 min, silent while cEOS boots)
+./scripts/test-all.sh [full]                         # all tests, short report (full ≈ 8 min, every suite passes)
 ./scripts/tests.sh                                   # expect 50 passed (iSCSI needs TrueNAS booted: 2–4 min, backup check: first backup 6 min after deploy)
 ./scripts/backup.sh run | restore-test               # backup now / prove it restores (local + TrueNAS copy)
 python3 scripts/truenas-setup.py                     # (re)apply TrueNAS config, asks for the password

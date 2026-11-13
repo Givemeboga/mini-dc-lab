@@ -64,7 +64,8 @@ Already installed? From the Ubuntu terminal:
 cd ~/projects/mini-dc-lab
 git pull
 ./deploy.sh                           # 5–8 min — never press Ctrl+C
-./scripts/tests.sh                    # wait 2–4 min for TrueNAS first; expect 50 passed, 0 failed
+./scripts/test-all.sh                 # wait 2–4 min for TrueNAS first; quick check with a short report
+./scripts/test-all.sh full            # everything: failover drills, database failover, alarm + attack demos (~8 min)
 ./scripts/tests.sh monitoring        # Zabbix demo: http://localhost:8080 (Admin / password in lab.env)
 ```
 

@@ -33,6 +33,8 @@ virtual disks, so nothing has to be reinstalled.
 | Command | What it does |
 |---|---|
 | `./deploy.sh` | Start the lab (5–8 min) |
+| `./scripts/test-all.sh` | **All tests in one run, short readable report.** Quick: lab health, 50 checks, backup restore test, database replication (~30 s, nothing broken on purpose) |
+| `./scripts/test-all.sh full` | Quick check + load sharing, failover drills, database failover (restored automatically), alarm and attack demos (~8 min). `./scripts/test-all.sh <suite>` runs one suite (`health functional backup database loadshare failover db-failover monitoring attack`); full output in `logs/tests-<date>/` |
 | `./scripts/tests.sh` | 50 functional checks |
 | `./scripts/tests.sh failover` | ISP, core gateway, firewall, website, intranet and DNS failover demo |
 | `./scripts/tests.sh loadshare` | Core load sharing: which core routes servers vs users, then user-gateway failover |
